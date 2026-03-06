@@ -1,5 +1,11 @@
-const CACHE = 'sepsis-alert-v1';
-const FILES = ['/', '/index.html', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
+const CACHE = 'sepsis-alert-v2';
+const FILES = [
+  '/emssepsisapp/',
+  '/emssepsisapp/index.html',
+  '/emssepsisapp/manifest.json',
+  '/emssepsisapp/icons/icon-192.png',
+  '/emssepsisapp/icons/icon-512.png'
+];
 
 // Install: cache all files
 self.addEventListener('install', function(e) {
@@ -38,7 +44,7 @@ self.addEventListener('fetch', function(e) {
       });
     }).catch(function() {
       // If completely offline and not cached, return the main app
-      return caches.match('/index.html');
+      return caches.match('/emssepsisapp/index.html');
     })
   );
 });
