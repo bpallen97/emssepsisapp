@@ -1,0 +1,2040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>SepsisAlert EMS</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#080c14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SepsisAlert">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="apple-touch-startup-image" href="icons/icon-512.png">
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('sw.js').catch(function(){});
+    });
+  }
+</script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #080c14; color: #f1f5f9; font-family: 'Courier New', monospace; max-width: 480px; margin: 0 auto; min-height: 100vh; padding-bottom: env(safe-area-inset-bottom); }
+
+  /* Header */
+  #header { background: #0a1220; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #1a2535; transition: background 0.3s; }
+  #header.alert { background: #ef4444; border-bottom-color: #dc2626; }
+  #header-title { font-size: 16px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+  #header-sub { font-size: 10px; color: rgba(255,255,255,0.6); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; }
+  #header.alert #header-sub { color: rgba(255,255,255,0.75); }
+  #badge { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; }
+  #timer-display { font-size: 11px; color: #64748b; margin-top: 5px; text-align: right; }
+  #header.alert #timer-display { color: rgba(255,255,255,0.7); }
+
+  /* Provider bar */
+  #provider-bar { background: #0f1623; border-bottom: 1px solid #1a2535; padding: 8px 14px; display: flex; align-items: center; gap: 8px; }
+  #provider-bar span { font-size: 10px; color: #64748b; letter-spacing: 0.1em; text-transform: uppercase; }
+  .pvl-btn { padding: 4px 14px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; font-family: 'Courier New', monospace; cursor: pointer; background: transparent; color: #64748b; border: 1px solid #1a2535; transition: all 0.15s; }
+  .pvl-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+
+  /* Nav */
+  #nav { display: flex; background: #0f1623; border-bottom: 1px solid #1a2535; position: sticky; top: 92px; z-index: 99; }
+  .nav-btn { flex: 1; padding: 11px 4px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 400; color: #64748b; background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer; font-family: 'Courier New', monospace; transition: all 0.15s; }
+  .nav-btn.active { font-weight: 700; color: #ef4444; border-bottom-color: #ef4444; }
+
+  /* Body */
+  #body { padding: 14px 14px 40px; }
+
+  /* Tabs */
+  .tab { display: none; }
+  .tab.active { display: block; }
+
+  /* Cards */
+  .card { background: #0f1623; border: 1px solid #1a2535; border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+  .card-title { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; margin-bottom: 10px; }
+
+  /* Score banner */
+  #score-banner { border-radius: 8px; padding: 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 14px; border: 1px solid #10b981; background: #10b98118; }
+  #score-num { font-size: 48px; font-weight: 700; color: #10b981; line-height: 1; min-width: 56px; }
+  #score-label { font-size: 14px; font-weight: 700; color: #10b981; }
+  #score-desc { font-size: 11px; color: #64748b; margin-top: 3px; line-height: 1.5; }
+
+  /* Criteria rows */
+  .crit-row { display: flex; align-items: center; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid #1a2535; cursor: pointer; }
+  .crit-row:last-child { border-bottom: none; }
+  .crit-text { flex: 1; padding-right: 12px; }
+  .crit-label { font-size: 13px; color: #64748b; font-weight: 400; }
+  .crit-label.on { color: #f1f5f9; font-weight: 600; }
+  .crit-sub { font-size: 11px; color: #64748b; margin-top: 2px; line-height: 1.4; }
+
+  /* Toggle */
+  .toggle { width: 44px; height: 24px; border-radius: 12px; flex-shrink: 0; cursor: pointer; position: relative; background: #162032; border: 1px solid #1a2535; transition: background 0.2s; }
+  .toggle.on { background: #ef4444; border-color: #ef4444; }
+  .toggle-dot { position: absolute; width: 18px; height: 18px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: left 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+  .toggle.on .toggle-dot { left: 22px; }
+
+  /* Timer card */
+  #timer-card { background: #0f1623; border: 1px solid #1a2535; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+  #timer-label { font-size: 10px; color: #64748b; letter-spacing: 0.1em; text-transform: uppercase; }
+  #timer-value { font-size: 28px; font-weight: 700; color: #f59e0b; line-height: 1.2; }
+  #timer-btn { padding: 9px 18px; border-radius: 6px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; cursor: pointer; font-family: 'Courier New', monospace; border: none; }
+  #timer-btn.start { background: #ef4444; color: #fff; }
+  #timer-btn.stop  { background: transparent; color: #64748b; border: 1px solid #1a2535; }
+
+  /* Alert box */
+  .alert-box { border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+  .alert-box-title { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; }
+  .alert-box p { font-size: 13px; color: #f1f5f9; line-height: 1.5; }
+
+  /* Lactate input */
+  #lac-input { width: 100%; background: #162032; border-radius: 6px; color: #f1f5f9; font-size: 40px; font-weight: 700; font-family: 'Courier New', monospace; padding: 14px 16px; text-align: center; outline: none; margin-bottom: 6px; border: 1px solid #1a2535; transition: border-color 0.2s; }
+  #lac-unit { text-align: center; font-size: 11px; color: #64748b; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 14px; }
+  #lac-result { border-radius: 6px; padding: 14px; text-align: center; display: none; }
+  #lac-result-level { font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  #lac-result-action { font-size: 12px; color: #f1f5f9; line-height: 1.5; }
+
+  /* Checklist */
+  .step-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid #1a2535; cursor: pointer; }
+  .step-row:last-child { border-bottom: none; }
+  .step-row.done { opacity: 0.4; }
+  .checkbox { width: 24px; height: 24px; border-radius: 5px; flex-shrink: 0; border: 2px solid #1a2535; background: transparent; display: flex; align-items: center; justify-content: center; transition: all 0.15s; margin-top: 1px; font-size: 14px; color: #fff; font-weight: 700; }
+  .checkbox.checked { background: #10b981; border-color: #10b981; }
+  .step-label { font-size: 13px; color: #f1f5f9; }
+  .step-row.done .step-label { text-decoration: line-through; color: #64748b; }
+  .step-sub { font-size: 11px; color: #64748b; margin-top: 3px; line-height: 1.4; }
+  .step-tag { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-left: 6px; vertical-align: middle; }
+
+  /* Progress */
+  #progress-bar-wrap { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  #progress-bar-bg { flex: 1; height: 4px; background: #1a2535; border-radius: 2px; overflow: hidden; }
+  #progress-bar-fill { height: 100%; width: 0%; background: #ef4444; border-radius: 2px; transition: width 0.3s; }
+  #progress-text { font-size: 11px; color: #64748b; white-space: nowrap; }
+
+  /* Ref list items */
+  .ref-item { font-size: 12px; color: #f1f5f9; padding: 6px 0; border-bottom: 1px solid #1a2535; line-height: 1.4; }
+  .ref-item:last-child { border-bottom: none; }
+  .ref-item .dot { font-weight: 700; margin-right: 8px; }
+
+  /* Reset btn */
+  #reset-btn { width: 100%; padding: 13px; background: transparent; border: 1px solid #1a2535; border-radius: 8px; color: #64748b; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; font-family: 'Courier New', monospace; margin-top: 4px; }
+  #reset-btn:hover { border-color: #ef4444; color: #ef4444; }
+
+  /* Lac reference rows */
+  .lac-ref-row { padding: 10px 0; border-bottom: 1px solid #1a2535; }
+  .lac-ref-row:last-child { border-bottom: none; }
+  .lac-ref-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .lac-ref-range { font-size: 13px; font-weight: 600; color: #f1f5f9; }
+  .lac-ref-note { font-size: 11px; color: #64748b; }
+  .tag { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; }
+
+  /* BP split input */
+  .bp-wrap { display:flex; align-items:center; gap:0; }
+  .bp-sys { flex:1; border-radius:6px 0 0 6px !important; border-right:none !important; text-align:center; font-size:18px !important; font-weight:700; padding:10px 6px !important; }
+  .bp-dia { flex:1; border-radius:0 6px 6px 0 !important; border-left:none !important; text-align:center; font-size:18px !important; font-weight:700; padding:10px 6px !important; }
+  .bp-sys:focus, .bp-dia:focus { border-color:#3b82f6 !important; z-index:1; position:relative; }
+  .bp-slash { background:#1a2535; color:#94a3b8; font-size:22px; font-weight:700; padding:0 4px; line-height:1; border-top:1px solid #1a2535; border-bottom:1px solid #1a2535; display:flex; align-items:center; }
+
+  /* Mobile touch improvements */
+  @media (max-width: 480px) {
+    input[type=number], input[type=text], select, textarea { font-size:16px !important; } /* prevents iOS zoom */
+    .pcr-input { padding: 11px 12px; }
+    .nav-btn { font-size:9px; padding:12px 2px; }
+    .crit-row { padding:13px 0; }
+    .step-row { padding:12px 0; }
+    #timer-value { font-size:24px; }
+    .pvl-btn { padding:5px 12px; }
+  }
+
+  /* Remove number input spinners — cleaner on mobile */
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+  input[type=number] { -moz-appearance:textfield; }
+  .pcr-field { margin-bottom: 10px; }
+  .pcr-field-row { display: flex; gap: 10px; }
+  .pcr-label { display: block; font-size: 10px; color: #64748b; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 5px; font-weight: 600; }
+  .pcr-input { width: 100%; background: #162032; border: 1px solid #1a2535; border-radius: 6px; color: #f1f5f9; font-size: 13px; font-family: 'Courier New', monospace; padding: 9px 12px; outline: none; transition: border-color 0.2s; }
+  .pcr-input:focus { border-color: #8b5cf6; }
+  .pcr-input option { background: #0f1623; }
+  .pcr-check-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid #1a2535; cursor: pointer; font-size: 13px; color: #94a3b8; }
+  .pcr-check-row:last-child { border-bottom: none; }
+  .pcr-check-row:hover { color: #f1f5f9; }
+  .pcr-chk { width: 22px; height: 22px; border-radius: 4px; flex-shrink: 0; border: 2px solid #1a2535; background: transparent; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #fff; font-weight: 700; transition: all 0.15s; }
+  .pcr-chk.on { background: #10b981; border-color: #10b981; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <div>
+    <div id="header-title">SepsisAlert EMS</div>
+    <div id="header-sub">OSF SEMC &middot; Ottawa Regional EMS</div>
+  </div>
+  <div style="text-align:right">
+    <span id="badge">LOW RISK</span>
+    <div id="timer-display" style="display:none">Scene: <span id="header-timer">--:--</span></div>
+  </div>
+</div>
+
+<!-- PROVIDER BAR -->
+<div id="provider-bar">
+  <span>Provider:</span>
+  <button class="pvl-btn" onclick="setLevel('BLS')">BLS</button>
+  <button class="pvl-btn" onclick="setLevel('ILS')">ILS</button>
+  <button class="pvl-btn active" onclick="setLevel('ALS')">ALS</button>
+</div>
+
+<!-- NAV -->
+<div id="nav">
+  <button class="nav-btn active" onclick="setTab('screen')">Screen</button>
+  <button class="nav-btn" onclick="setTab('lactate')">Lactate</button>
+  <button class="nav-btn" onclick="setTab('treat')">Treat</button>
+  <button class="nav-btn" onclick="setTab('ref')">Ref</button>
+  <button class="nav-btn" onclick="setTab('pcr')">PCR</button>
+</div>
+
+<!-- BODY -->
+<div id="body">
+
+  <!-- ===== SCREEN TAB ===== -->
+  <div id="tab-screen" class="tab active">
+
+    <!-- Timer -->
+    <div id="timer-card">
+      <div>
+        <div id="timer-label">Scene Timer</div>
+        <div id="timer-value">--:--</div>
+      </div>
+      <button id="timer-btn" class="start" onclick="toggleTimer()">Start</button>
+    </div>
+
+    <!-- Score banner -->
+    <div id="score-banner">
+      <div id="score-num">0</div>
+      <div>
+        <div id="score-label">Screening Negative</div>
+        <div id="score-desc">Does not meet 2+ criteria. Monitor and reassess.</div>
+      </div>
+    </div>
+
+    <!-- Criteria -->
+    <div class="card">
+      <div class="card-title" style="color:#ef4444">OSF SEMC Sepsis Screening Tool</div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:12px">2 or more criteria = Sepsis Alert &nbsp;|&nbsp; Patient must be age 18 or older</div>
+      <div class="crit-row" onclick="toggleCrit('hr')">
+        <div class="crit-text">
+          <div class="crit-label" id="lbl-hr">Heart Rate above 90</div>
+          <div class="crit-sub">beats/min</div>
+        </div>
+        <div class="toggle" id="tog-hr"><div class="toggle-dot"></div></div>
+      </div>
+      <div class="crit-row" onclick="toggleCrit('rr')">
+        <div class="crit-text">
+          <div class="crit-label" id="lbl-rr">Respiratory Rate above 22</div>
+          <div class="crit-sub">breaths/min — or PaCO2 below 32 — or mechanical ventilation</div>
+        </div>
+        <div class="toggle" id="tog-rr"><div class="toggle-dot"></div></div>
+      </div>
+      <div class="crit-row" onclick="toggleCrit('sbp')">
+        <div class="crit-text">
+          <div class="crit-label" id="lbl-sbp">Systolic BP 90 mmHg or less</div>
+          <div class="crit-sub">hypotension</div>
+        </div>
+        <div class="toggle" id="tog-sbp"><div class="toggle-dot"></div></div>
+      </div>
+      <div class="crit-row" onclick="toggleCrit('temp')">
+        <div class="crit-text">
+          <div class="crit-label" id="lbl-temp">Temp above 100.4F or below 96.8F</div>
+          <div class="crit-sub">or skin hot/cold if no thermometer available</div>
+        </div>
+        <div class="toggle" id="tog-temp"><div class="toggle-dot"></div></div>
+      </div>
+      <div class="crit-row" onclick="toggleCrit('ams')">
+        <div class="crit-text">
+          <div class="crit-label" id="lbl-ams">AMS / Decreased LOC</div>
+          <div class="crit-sub">altered mental status or decreased level of consciousness</div>
+        </div>
+        <div class="toggle" id="tog-ams"><div class="toggle-dot"></div></div>
+      </div>
+      <div class="crit-row" onclick="toggleCrit('inf')">
+        <div class="crit-text">
+          <div class="crit-label" id="lbl-inf">Suspected Infection</div>
+          <div class="crit-sub">pneumonia, UTI, meningitis, cellulitis, decubitus ulcer, recent hospitalization/surgery</div>
+        </div>
+        <div class="toggle" id="tog-inf"><div class="toggle-dot"></div></div>
+      </div>
+      <div class="crit-row" onclick="toggleCrit('gluc')">
+        <div class="crit-text">
+          <div class="crit-label" id="lbl-gluc">Hyperglycemia or Hypoglycemia</div>
+          <div class="crit-sub">blood glucose abnormality</div>
+        </div>
+        <div class="toggle" id="tog-gluc"><div class="toggle-dot"></div></div>
+      </div>
+      <div class="crit-row" onclick="toggleCrit('tx')">
+        <div class="crit-text">
+          <div class="crit-label" id="lbl-tx">Already Treating Infection</div>
+          <div class="crit-sub">patient currently on antibiotics or infection treatment</div>
+        </div>
+        <div class="toggle" id="tog-tx"><div class="toggle-dot"></div></div>
+      </div>
+    </div>
+
+    <!-- Risk Factors -->
+    <div class="card">
+      <div class="card-title" style="color:#8b5cf6">Risk Factors (Non-Scoring)</div>
+      <div class="crit-row" onclick="toggleRisk('age')">
+        <div class="crit-text">
+          <div class="crit-label" id="lbl-r-age">Age 18 or older</div>
+          <div class="crit-sub">Protocol applies to adults only</div>
+        </div>
+        <div class="toggle" id="tog-r-age"><div class="toggle-dot"></div></div>
+      </div>
+      <div class="crit-row" onclick="toggleRisk('immuno')">
+        <div class="crit-text">
+          <div class="crit-label" id="lbl-r-immuno">Immunocompromised</div>
+          <div class="crit-sub">Transplant, HIV/AIDS, diabetes, cancer</div>
+        </div>
+        <div class="toggle" id="tog-r-immuno"><div class="toggle-dot"></div></div>
+      </div>
+      <div class="crit-row" onclick="toggleRisk('hosp')">
+        <div class="crit-text">
+          <div class="crit-label" id="lbl-r-hosp">Recent Hospitalization / Surgery</div>
+          <div class="crit-sub">Within past 30 days</div>
+        </div>
+        <div class="toggle" id="tog-r-hosp"><div class="toggle-dot"></div></div>
+      </div>
+    </div>
+
+    <!-- Alert box (hidden by default) -->
+    <div id="alert-box" class="alert-box" style="display:none;background:#ef444418;border:1px solid #ef4444">
+      <div class="alert-box-title" style="color:#ef4444">SEPSIS ALERT REQUIRED</div>
+      <p>Call Medical Control immediately. Provide: ETA, vitals, lactate, GCS, and interventions performed. Initiate treatment protocol now.</p>
+    </div>
+
+  </div><!-- end screen tab -->
+
+  <!-- ===== LACTATE TAB ===== -->
+  <div id="tab-lactate" class="tab">
+
+    <div class="card">
+      <div class="card-title" style="color:#64748b">Point-of-Care Lactate</div>
+      <input id="lac-input" type="number" step="0.1" min="0" max="30" placeholder="0.0" oninput="updateLactate()" />
+      <div id="lac-unit">mmol / L</div>
+      <div id="lac-result">
+        <div id="lac-result-level"></div>
+        <div id="lac-result-action"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="color:#3b82f6">OSF SEMC Fluid Calculator</div>
+
+      <!-- Weight input row -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="flex:1">
+          <div style="font-size:10px;color:#64748b;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px">Patient Weight</div>
+          <input id="weight-input" type="number" step="0.1" min="1" max="300" placeholder="0" oninput="updateFluid()"
+            style="width:100%;background:#162032;border:1px solid #1a2535;border-radius:6px;color:#f1f5f9;font-size:28px;font-weight:700;font-family:'Courier New',monospace;padding:10px 14px;text-align:center;outline:none;transition:border-color 0.2s;" />
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;padding-top:22px">
+          <button onclick="setWeightUnit('kg')" id="btn-kg" class="pvl-btn active" style="padding:6px 14px">kg</button>
+          <button onclick="setWeightUnit('lbs')" id="btn-lbs" class="pvl-btn" style="padding:6px 14px">lbs</button>
+        </div>
+      </div>
+
+      <!-- Fluid result -->
+      <div id="fluid-result" style="display:none;border-radius:6px;padding:14px;margin-bottom:12px;background:#3b82f618;border:1px solid #3b82f6">
+        <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Initial Bolus (20 mL/kg)</div>
+        <div id="fluid-amount" style="font-size:36px;font-weight:700;color:#3b82f6;font-family:'Courier New',monospace;line-height:1"></div>
+        <div id="fluid-weight-display" style="font-size:11px;color:#64748b;margin-top:4px"></div>
+        <div style="border-top:1px solid #1a253580;margin-top:10px;padding-top:10px">
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Max repeat bolus (up to 1L additional)</div>
+          <div id="fluid-repeat" style="font-size:18px;font-weight:700;color:#f59e0b;font-family:'Courier New',monospace"></div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px">Repeat only if SBP remains below 90 mmHg</div>
+        </div>
+      </div>
+
+      <div style="font-size:13px;color:#f1f5f9;line-height:1.7"><span style="color:#f59e0b;font-weight:700">Dose:</span> 20 mL/kg Normal Saline IV</div>
+      <div style="font-size:13px;color:#f1f5f9;line-height:1.7"><span style="color:#f59e0b;font-weight:700">Repeat if needed:</span> to maintain SBP above 90 mmHg</div>
+      <div style="font-size:11px;color:#64748b;margin-top:8px;line-height:1.5">Hold fluids if crackles develop. Central line may be used if peripheral IV unobtainable with SBP below 80 mmHg (ALS only).</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="color:#64748b">Lactate Reference</div>
+      <div class="lac-ref-row">
+        <div class="lac-ref-top">
+          <span class="lac-ref-range">Less than 2.0 mmol/L</span>
+          <span class="tag" style="background:#10b98128;color:#10b981;border:1px solid #10b98144">Normal</span>
+        </div>
+        <div class="lac-ref-note">Monitor. Standard sepsis care.</div>
+      </div>
+      <div class="lac-ref-row">
+        <div class="lac-ref-top">
+          <span class="lac-ref-range">2.0 to 3.9 mmol/L</span>
+          <span class="tag" style="background:#f59e0b28;color:#f59e0b;border:1px solid #f59e0b44">Elevated</span>
+        </div>
+        <div class="lac-ref-note">Sepsis likely. 20 mL/kg IVF. Sepsis Alert.</div>
+      </div>
+      <div class="lac-ref-row">
+        <div class="lac-ref-top">
+          <span class="lac-ref-range">4.0 or above mmol/L</span>
+          <span class="tag" style="background:#ef444428;color:#ef4444;border:1px solid #ef444444">Septic Shock</span>
+        </div>
+        <div class="lac-ref-note">Critical. Aggressive resuscitation. Immediate transport.</div>
+      </div>
+    </div>
+
+  </div><!-- end lactate tab -->
+
+  <!-- ===== TREAT TAB ===== -->
+  <div id="tab-treat" class="tab">
+
+    <div id="progress-bar-wrap">
+      <span id="progress-text">0/0</span>
+      <div id="progress-bar-bg"><div id="progress-bar-fill"></div></div>
+      <span id="progress-pct" class="tag" style="background:#ef444428;color:#ef4444;border:1px solid #ef444444">0%</span>
+    </div>
+
+    <div id="treat-alert" class="alert-box" style="display:none;background:#ef444418;border:1px solid #ef4444">
+      <div class="alert-box-title" style="color:#ef4444">Sepsis Alert Active</div>
+      <p id="treat-alert-text" style="font-size:12px">Screening positive. Medical Control notification required.</p>
+    </div>
+
+    <div id="steps-container"></div>
+
+  </div><!-- end treat tab -->
+
+  <!-- ===== REFERENCE TAB ===== -->
+  <div id="tab-ref" class="tab">
+
+    <div class="card">
+      <div class="card-title" style="color:#ef4444">OSF SEMC Screening Criteria</div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:10px">2 or more + age 18 or older = Sepsis Alert:</div>
+      <div class="ref-item"><span class="dot" style="color:#ef4444">-</span>HR above 90 bpm</div>
+      <div class="ref-item"><span class="dot" style="color:#ef4444">-</span>RR above 22 — or PaCO2 below 32 — or mechanical ventilation</div>
+      <div class="ref-item"><span class="dot" style="color:#ef4444">-</span>SBP at or below 90 mmHg</div>
+      <div class="ref-item"><span class="dot" style="color:#ef4444">-</span>Temp above 100.4F or below 96.8F</div>
+      <div class="ref-item"><span class="dot" style="color:#ef4444">-</span>AMS or Decreased LOC</div>
+      <div class="ref-item"><span class="dot" style="color:#ef4444">-</span>Chief complaint suggestive of infection</div>
+      <div class="ref-item"><span class="dot" style="color:#ef4444">-</span>Hyperglycemia or Hypoglycemia</div>
+      <div class="ref-item"><span class="dot" style="color:#ef4444">-</span>Already treating infection</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="color:#f59e0b">Medical Control Report</div>
+      <div class="ref-item"><span class="dot" style="color:#f59e0b">-</span>Patient age and chief complaint</div>
+      <div class="ref-item"><span class="dot" style="color:#f59e0b">-</span>All positive screening criteria</div>
+      <div class="ref-item"><span class="dot" style="color:#f59e0b">-</span>Current vitals: BP, HR, RR, SpO2, Temp</div>
+      <div class="ref-item"><span class="dot" style="color:#f59e0b">-</span>GCS and mental status</div>
+      <div class="ref-item"><span class="dot" style="color:#f59e0b">-</span>POC Lactate value</div>
+      <div class="ref-item"><span class="dot" style="color:#f59e0b">-</span>Interventions performed and patient response</div>
+      <div class="ref-item"><span class="dot" style="color:#f59e0b">-</span>ETA to receiving facility</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="color:#3b82f6">Differential Diagnosis</div>
+      <div class="ref-item"><span class="dot" style="color:#3b82f6">-</span>Cancer / Tumors / Lymphomas</div>
+      <div class="ref-item"><span class="dot" style="color:#3b82f6">-</span>Medication or Drug Reaction</div>
+      <div class="ref-item"><span class="dot" style="color:#3b82f6">-</span>Hyperthyroid</div>
+      <div class="ref-item"><span class="dot" style="color:#3b82f6">-</span>Meningitis</div>
+      <div class="ref-item"><span class="dot" style="color:#3b82f6">-</span>Hyperglycemia / DKA</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="color:#ef4444">Contraindications</div>
+      <div style="font-size:13px;color:#f1f5f9;line-height:1.5;padding:8px 0;border-bottom:1px solid #1a2535">
+        <span style="color:#ef4444;font-weight:700">Solu-Medrol CONTRAINDICATED</span> — Do NOT give to patients with fever, hyperglycemia, AND signs/symptoms of sepsis.
+      </div>
+      <div style="font-size:13px;color:#f1f5f9;line-height:1.5;padding:8px 0">
+        <span style="color:#f59e0b;font-weight:700">Hold fluids</span> if pulmonary crackles develop during resuscitation.
+      </div>
+    </div>
+
+  </div><!-- end ref tab -->
+
+  <!-- ===== PCR TAB ===== -->
+  <div id="tab-pcr" class="tab">
+
+    <div style="font-size:11px;color:#64748b;margin-bottom:12px;line-height:1.5">Fill in patient details below. The app will generate a complete, professional PCR narrative using all data entered across all tabs.</div>
+
+    <!-- Voice Intake -->
+    <div class="card" style="border-color:#8b5cf6">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div class="card-title" style="color:#8b5cf6;margin-bottom:0">Voice Intake</div>
+        <span class="tag" style="background:#8b5cf628;color:#8b5cf6;border:1px solid #8b5cf644">On-Device</span>
+      </div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:4px;line-height:1.6">Press <strong style="color:#f1f5f9">Start Listening</strong> and have your normal patient interview. When done, press <strong style="color:#f1f5f9">Stop &amp; Extract</strong>. Works in Chrome on Android or desktop Chrome — no internet required.</div>
+      <div style="font-size:10px;color:#3b82f6;margin-bottom:12px;line-height:1.5">&#9432; Speak clearly. Say the patient's age, what brought them in, their medical history, medications, and allergies. The app listens to everything and pulls those 5 fields automatically.</div>
+
+      <button id="voice-btn" onclick="toggleVoice()" style="width:100%;padding:13px;background:#8b5cf6;border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;font-family:'Courier New',monospace;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:8px">
+        <span id="voice-btn-icon">&#9679;</span>
+        <span id="voice-btn-label">Start Listening</span>
+      </button>
+
+      <div id="voice-status" style="display:none;text-align:center;font-size:11px;margin-bottom:8px;padding:6px;background:#ef444418;border-radius:6px;border:1px solid #ef444444">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444;margin-right:6px;animation:pulse 1s infinite;vertical-align:middle"></span>
+        <span style="color:#ef4444;font-weight:700;letter-spacing:0.08em;text-transform:uppercase">Listening — speak now</span>
+      </div>
+
+      <div id="voice-transcript-wrap" style="display:none;margin-bottom:8px">
+        <div style="font-size:10px;color:#64748b;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:5px">Live Transcript</div>
+        <div id="voice-transcript" style="background:#162032;border:1px solid #1a2535;border-radius:6px;padding:10px;font-size:11px;color:#94a3b8;line-height:1.6;max-height:130px;overflow-y:auto;white-space:pre-wrap;word-break:break-word"></div>
+      </div>
+
+      <div id="voice-processing" style="display:none;text-align:center;padding:12px 0">
+        <div style="font-size:11px;color:#8b5cf6;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px">Extracting information...</div>
+        <div style="font-size:11px;color:#64748b">Reading transcript for age, complaint, history, medications, allergies</div>
+      </div>
+
+      <div id="voice-result" style="display:none;background:#10b98118;border:1px solid #10b981;border-radius:6px;padding:12px;margin-top:8px">
+        <div style="font-size:11px;font-weight:700;color:#10b981;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px">&#10003; Fields Filled</div>
+        <div id="voice-result-text" style="font-size:12px;color:#cbd5e1;line-height:1.9"></div>
+        <div style="font-size:10px;color:#64748b;margin-top:8px;border-top:1px solid #1a2535;padding-top:8px">Always review and correct before generating PCR.</div>
+      </div>
+
+      <div id="voice-error" style="display:none;background:#ef444418;border:1px solid #ef4444;border-radius:6px;padding:12px;margin-top:8px">
+        <div style="font-size:11px;font-weight:700;color:#ef4444;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px">Notice</div>
+        <div id="voice-error-text" style="font-size:11px;color:#cbd5e1;line-height:1.6"></div>
+      </div>
+    </div>
+    <style>@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}</style>
+
+    <!-- Patient Info -->
+    <div class="card">
+      <div class="card-title" style="color:#8b5cf6">Patient Information</div>
+      <div class="pcr-field-row">
+        <div class="pcr-field" style="flex:1">
+          <label class="pcr-label">Age</label>
+          <input class="pcr-input" id="pcr-age" type="number" min="18" max="120" placeholder="e.g. 72" />
+        </div>
+        <div class="pcr-field" style="flex:1">
+          <label class="pcr-label">Sex</label>
+          <select class="pcr-input" id="pcr-sex">
+            <option value="">Select</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="unknown">Unknown</option>
+          </select>
+        </div>
+      </div>
+      <div class="pcr-field">
+        <label class="pcr-label">Chief Complaint</label>
+        <input class="pcr-input" id="pcr-cc" type="text" placeholder="e.g. altered mental status, fever, weakness" />
+      </div>
+      <div class="pcr-field">
+        <label class="pcr-label">History of Present Illness / Onset</label>
+        <input class="pcr-input" id="pcr-hpi" type="text" placeholder="e.g. found unresponsive by family, 2-day history of fever" />
+      </div>
+      <div class="pcr-field">
+        <label class="pcr-label">Pertinent Medical History (PMHx)</label>
+        <input class="pcr-input" id="pcr-pmhx" type="text" placeholder="e.g. DM2, HTN, CKD, recent hospitalization" />
+      </div>
+      <div class="pcr-field">
+        <label class="pcr-label">Medications</label>
+        <input class="pcr-input" id="pcr-meds" type="text" placeholder="e.g. metformin, lisinopril, insulin" />
+      </div>
+      <div class="pcr-field">
+        <label class="pcr-label">Allergies</label>
+        <input class="pcr-input" id="pcr-allergy" type="text" placeholder="e.g. NKDA, penicillin" />
+      </div>
+    </div>
+
+    <!-- Vitals -->
+    <div class="card">
+      <div class="card-title" style="color:#3b82f6">Vitals on Arrival</div>
+      <div class="pcr-field-row">
+        <div class="pcr-field" style="flex:1">
+          <label class="pcr-label">BP (mmHg)</label>
+          <div class="bp-wrap">
+            <input class="pcr-input bp-sys" id="pcr-bp-sys" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="SYS" min="40" max="300" oninput="bpAutoAdvance(this,'pcr-bp-dia')" />
+            <span class="bp-slash">/</span>
+            <input class="pcr-input bp-dia" id="pcr-bp-dia" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="DIA" min="20" max="200" />
+          </div>
+        </div>
+        <div class="pcr-field" style="flex:1">
+          <label class="pcr-label">HR (bpm)</label>
+          <input class="pcr-input" id="pcr-hr" type="number" placeholder="e.g. 118" />
+        </div>
+      </div>
+      <div class="pcr-field-row">
+        <div class="pcr-field" style="flex:1">
+          <label class="pcr-label">RR (breaths/min)</label>
+          <input class="pcr-input" id="pcr-rr" type="number" placeholder="e.g. 26" />
+        </div>
+        <div class="pcr-field" style="flex:1">
+          <label class="pcr-label">SpO2 (%)</label>
+          <input class="pcr-input" id="pcr-spo2" type="number" placeholder="e.g. 94" />
+        </div>
+      </div>
+      <div class="pcr-field-row">
+        <div class="pcr-field" style="flex:1">
+          <label class="pcr-label">Temperature</label>
+          <input class="pcr-input" id="pcr-temp" type="text" placeholder="e.g. 102.4F" />
+        </div>
+        <div class="pcr-field" style="flex:1">
+          <label class="pcr-label">GCS</label>
+          <input class="pcr-input" id="pcr-gcs" type="number" min="3" max="15" placeholder="e.g. 13" />
+        </div>
+      </div>
+      <div class="pcr-field-row">
+        <div class="pcr-field" style="flex:1">
+          <label class="pcr-label">Blood Glucose (mg/dL)</label>
+          <input class="pcr-input" id="pcr-bg" type="number" placeholder="e.g. 210" />
+        </div>
+        <div class="pcr-field" style="flex:1">
+          <label class="pcr-label">EtCO2 (mmHg)</label>
+          <input class="pcr-input" id="pcr-etco2" type="number" placeholder="e.g. 28" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Vitals on departure -->
+    <div class="card">
+      <div class="card-title" style="color:#10b981">Vitals on Departure / Throughout Transport</div>
+      <div class="pcr-field-row">
+        <div class="pcr-field" style="flex:1">
+          <label class="pcr-label">BP (mmHg)</label>
+          <div class="bp-wrap">
+            <input class="pcr-input bp-sys" id="pcr-bp2-sys" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="SYS" min="40" max="300" oninput="bpAutoAdvance(this,'pcr-bp2-dia')" />
+            <span class="bp-slash">/</span>
+            <input class="pcr-input bp-dia" id="pcr-bp2-dia" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="DIA" min="20" max="200" />
+          </div>
+        </div>
+        <div class="pcr-field" style="flex:1">
+          <label class="pcr-label">HR (bpm)</label>
+          <input class="pcr-input" id="pcr-hr2" type="number" placeholder="e.g. 104" />
+        </div>
+      </div>
+      <div class="pcr-field-row">
+        <div class="pcr-field" style="flex:1">
+          <label class="pcr-label">SpO2 (%)</label>
+          <input class="pcr-input" id="pcr-spo2-2" type="number" placeholder="e.g. 98" />
+        </div>
+        <div class="pcr-field" style="flex:1">
+          <label class="pcr-label">GCS</label>
+          <input class="pcr-input" id="pcr-gcs2" type="number" min="3" max="15" placeholder="e.g. 14" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Interventions -->
+    <div class="card">
+      <div class="card-title" style="color:#f59e0b">Interventions Performed</div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:10px">Check all that were performed</div>
+      <div class="pcr-check-row" onclick="togglePcrCheck('pi-o2-nrb')">
+        <div class="pcr-chk" id="pi-o2-nrb"></div>
+        <span>Oxygen via 15L NRB mask</span>
+      </div>
+      <div class="pcr-check-row" onclick="togglePcrCheck('pi-o2-nc')">
+        <div class="pcr-chk" id="pi-o2-nc"></div>
+        <span>Oxygen via 6L nasal cannula</span>
+      </div>
+      <div class="pcr-check-row" onclick="togglePcrCheck('pi-iv')">
+        <div class="pcr-chk" id="pi-iv"></div>
+        <span>IV access established</span>
+      </div>
+      <div class="pcr-check-row" onclick="togglePcrCheck('pi-io')">
+        <div class="pcr-chk" id="pi-io"></div>
+        <span>IO access established</span>
+      </div>
+      <div class="pcr-check-row" onclick="togglePcrCheck('pi-ivf')">
+        <div class="pcr-chk" id="pi-ivf"></div>
+        <span>IV fluid bolus administered (20 mL/kg NS)</span>
+      </div>
+      <div class="pcr-check-row" onclick="togglePcrCheck('pi-ivf2')">
+        <div class="pcr-chk" id="pi-ivf2"></div>
+        <span>Repeat fluid bolus administered</span>
+      </div>
+      <div class="pcr-check-row" onclick="togglePcrCheck('pi-lactate')">
+        <div class="pcr-chk" id="pi-lactate"></div>
+        <span>Point-of-care lactate obtained</span>
+      </div>
+      <div class="pcr-check-row" onclick="togglePcrCheck('pi-ecg')">
+        <div class="pcr-chk" id="pi-ecg"></div>
+        <span>12-lead ECG obtained</span>
+      </div>
+      <div class="pcr-check-row" onclick="togglePcrCheck('pi-glucose')">
+        <div class="pcr-chk" id="pi-glucose"></div>
+        <span>Blood glucose checked</span>
+      </div>
+      <div class="pcr-check-row" onclick="togglePcrCheck('pi-dextrose')">
+        <div class="pcr-chk" id="pi-dextrose"></div>
+        <span>Dextrose 50% administered</span>
+      </div>
+      <div class="pcr-check-row" onclick="togglePcrCheck('pi-mc')">
+        <div class="pcr-chk" id="pi-mc"></div>
+        <span>Medical Control contacted — Sepsis Alert called</span>
+      </div>
+      <div class="pcr-check-row" onclick="togglePcrCheck('pi-etco2')">
+        <div class="pcr-chk" id="pi-etco2"></div>
+        <span>EtCO2 monitoring applied</span>
+      </div>
+    </div>
+
+    <!-- IV Site / Fluid details -->
+    <div class="card">
+      <div class="card-title" style="color:#3b82f6">IV / Fluid Details</div>
+      <div class="pcr-field-row">
+        <div class="pcr-field" style="flex:1">
+          <label class="pcr-label">IV Site</label>
+          <input class="pcr-input" id="pcr-ivsite" type="text" placeholder="e.g. R AC, 18g" />
+        </div>
+        <div class="pcr-field" style="flex:1">
+          <label class="pcr-label">Total Fluid Given (mL)</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input class="pcr-input" id="pcr-ivtotal" type="number" placeholder="e.g. 1000" style="flex:1" />
+            <button onclick="quickAddFluid()" id="quick-add-btn" title="Auto-fill from weight calculator" style="flex-shrink:0;padding:9px 10px;background:#3b82f628;border:1px solid #3b82f6;border-radius:6px;color:#3b82f6;font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;font-family:'Courier New',monospace;white-space:nowrap">Auto-fill</button>
+          </div>
+          <div id="quick-add-hint" style="font-size:10px;color:#64748b;margin-top:4px;display:none"></div>
+        </div>
+      </div>
+      <div class="pcr-field">
+        <label class="pcr-label">Patient Response to Fluids</label>
+        <select class="pcr-input" id="pcr-fluid-response">
+          <option value="">Select</option>
+          <option value="improved">Improved — BP and HR improved, patient more responsive</option>
+          <option value="partial">Partial improvement — some hemodynamic improvement noted</option>
+          <option value="unchanged">No change — hemodynamics unchanged after fluid administration</option>
+          <option value="declined">Declined — crackles noted, fluids held</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 12-Lead ECG Interpretation -->
+    <div class="card">
+      <div class="card-title" style="color:#f59e0b">12-Lead ECG Interpretation</div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:12px">Obtained and interpreted in field. Select all findings that apply.</div>
+      <div class="pcr-field">
+        <label class="pcr-label">Primary Rhythm</label>
+        <select class="pcr-input" id="pcr-rhythm">
+          <option value="">Select rhythm</option>
+          <optgroup label="Normal">
+            <option value="nsr">Normal Sinus Rhythm (NSR)</option>
+            <option value="st">Sinus Tachycardia</option>
+            <option value="sb">Sinus Bradycardia</option>
+            <option value="sa">Sinus Arrhythmia</option>
+          </optgroup>
+          <optgroup label="Supraventricular">
+            <option value="afib">Atrial Fibrillation</option>
+            <option value="aflutter">Atrial Flutter</option>
+            <option value="svt">Supraventricular Tachycardia (SVT)</option>
+            <option value="avnrt">AVNRT</option>
+            <option value="avrt">AVRT / WPW Pattern</option>
+            <option value="pat">Paroxysmal Atrial Tachycardia (PAT)</option>
+            <option value="junctional">Junctional Rhythm</option>
+            <option value="pacs">PACs (Premature Atrial Contractions)</option>
+          </optgroup>
+          <optgroup label="Ventricular">
+            <option value="pvcs">PVCs (Premature Ventricular Contractions)</option>
+            <option value="pvcs-freq">Frequent PVCs (bigeminy/trigeminy)</option>
+            <option value="vt">Ventricular Tachycardia (VT)</option>
+            <option value="vfib">Ventricular Fibrillation (VF)</option>
+            <option value="idioventricular">Idioventricular Rhythm</option>
+            <option value="torsades">Torsades de Pointes</option>
+          </optgroup>
+          <optgroup label="Conduction / Blocks">
+            <option value="1avb">1st Degree AV Block</option>
+            <option value="2avb-m1">2nd Degree AV Block — Mobitz Type I (Wenckebach)</option>
+            <option value="2avb-m2">2nd Degree AV Block — Mobitz Type II</option>
+            <option value="3avb">3rd Degree (Complete) AV Block</option>
+            <option value="rbbb">Right Bundle Branch Block (RBBB)</option>
+            <option value="lbbb">Left Bundle Branch Block (LBBB)</option>
+            <option value="lbbb-new">New LBBB (presumed STEMI equivalent)</option>
+            <option value="lafb">Left Anterior Fascicular Block (LAFB)</option>
+            <option value="lpfb">Left Posterior Fascicular Block (LPFB)</option>
+          </optgroup>
+          <optgroup label="Ischemia / Infarct">
+            <option value="stemi-ant">STEMI — Anterior (V1-V4)</option>
+            <option value="stemi-inf">STEMI — Inferior (II, III, aVF)</option>
+            <option value="stemi-lat">STEMI — Lateral (I, aVL, V5-V6)</option>
+            <option value="stemi-post">STEMI — Posterior</option>
+            <option value="stemi-rv">STEMI — Right Ventricular</option>
+            <option value="nstemi">NSTEMI / ST Depression</option>
+            <option value="twi">T-Wave Inversions</option>
+            <option value="lbbb-sgarbossa">LBBB with Sgarbossa Criteria met</option>
+          </optgroup>
+          <optgroup label="Other">
+            <option value="paced">Paced Rhythm</option>
+            <option value="paced-failure">Pacemaker Failure to Capture</option>
+            <option value="long-qt">Prolonged QT Interval</option>
+            <option value="brugada">Brugada Pattern</option>
+            <option value="early-repol">Early Repolarization</option>
+            <option value="artifact">Artifact / Poor Quality — Uninterpretable</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="pcr-field">
+        <label class="pcr-label">Additional ECG Findings</label>
+        <select class="pcr-input" id="pcr-ecg-finding2">
+          <option value="">None / Not applicable</option>
+          <option value="st-elev">ST Elevation noted</option>
+          <option value="st-dep">ST Depression noted</option>
+          <option value="twi">T-Wave inversions noted</option>
+          <option value="wide-qrs">Wide QRS complex</option>
+          <option value="long-qt">Prolonged QT</option>
+          <option value="delta">Delta waves present</option>
+          <option value="q-waves">Pathological Q-waves</option>
+          <option value="lvh">LVH pattern</option>
+          <option value="none">No acute ST/T changes</option>
+        </select>
+      </div>
+      <div class="pcr-field">
+        <label class="pcr-label">12-Lead Transmitted to Hospital?</label>
+        <select class="pcr-input" id="pcr-ecg-tx">
+          <option value="">Select</option>
+          <option value="yes">Yes — transmitted to receiving facility</option>
+          <option value="no">No — not transmitted</option>
+          <option value="na">12-Lead not obtained</option>
+        </select>
+      </div>
+      <div class="pcr-field">
+        <label class="pcr-label">Additional ECG Notes (Optional)</label>
+        <input class="pcr-input" id="pcr-ecg-notes" type="text" placeholder="e.g. rate 118, irregular, no acute ST changes" />
+      </div>
+    </div>
+
+    <!-- Additional notes -->
+    <div class="card">
+      <div class="card-title" style="color:#64748b">Additional Notes (Optional)</div>
+      <textarea id="pcr-notes" placeholder="e.g. family at bedside, patient transported in position of comfort, skin warm and flushed, diaphoretic..." style="width:100%;background:#162032;border:1px solid #1a2535;border-radius:6px;color:#f1f5f9;font-size:12px;font-family:'Courier New',monospace;padding:10px;outline:none;resize:vertical;min-height:70px;line-height:1.5"></textarea>
+    </div>
+
+    <!-- Provider -->
+    <div class="card">
+      <div class="card-title" style="color:#64748b">Provider Information (Optional)</div>
+      <div class="pcr-field-row">
+        <div class="pcr-field" style="flex:2">
+          <label class="pcr-label">Provider Name</label>
+          <input class="pcr-input" id="pcr-provider-name" type="text" placeholder="e.g. J. Smith" />
+        </div>
+        <div class="pcr-field" style="flex:1">
+          <label class="pcr-label">License / ID</label>
+          <input class="pcr-input" id="pcr-provider-id" type="text" placeholder="e.g. P-12345" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Generate button -->
+    <button onclick="generatePCR()" style="width:100%;padding:14px;background:#8b5cf6;border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;font-family:'Courier New',monospace;margin-bottom:12px">Generate PCR Narrative</button>
+
+    <!-- Output -->
+    <div id="pcr-output" style="display:none">
+      <div class="card" style="border-color:#8b5cf6">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div class="card-title" style="color:#8b5cf6;margin-bottom:0">Generated PCR Narrative</div>
+          <div style="display:flex;gap:8px">
+            <button onclick="copyPCR()" id="copy-btn" style="padding:5px 12px;background:#8b5cf628;border:1px solid #8b5cf6;border-radius:4px;color:#8b5cf6;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;font-family:'Courier New',monospace">Copy</button>
+            <button onclick="selectPCR()" style="padding:5px 12px;background:transparent;border:1px solid #1a2535;border-radius:4px;color:#64748b;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;font-family:'Courier New',monospace">Select All</button>
+          </div>
+        </div>
+        <div id="pcr-text" style="font-size:12px;color:#f1f5f9;line-height:1.8;white-space:pre-wrap;background:#162032;border:1px solid #1a2535;border-radius:6px;padding:14px;cursor:text;user-select:text;-webkit-user-select:text"></div>
+        <div id="copy-confirm" style="display:none;text-align:center;font-size:11px;color:#10b981;margin-top:8px;font-weight:700;letter-spacing:0.08em">Copied to clipboard</div>
+      </div>
+    </div>
+
+  </div><!-- end pcr tab -->
+
+  <button id="reset-btn" onclick="resetAll()">Reset — New Patient</button>
+
+</div><!-- end body -->
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+var crit   = { hr:false, rr:false, sbp:false, temp:false, ams:false, inf:false, gluc:false, tx:false };
+var risks  = { age:false, immuno:false, hosp:false };
+var checks = {};
+var timerStart = null;
+var timerInterval = null;
+var providerLevel = "ALS";
+var currentTab = "screen";
+
+// ── Treatment steps data ───────────────────────────────────────────────────
+var STEPS = [
+  { id:"upcp",     label:"Universal Patient Care Protocol",     sub:"Contact, droplet and airborne precautions. BSI. Scene safety.",              cat:"immediate", lvl:"ALL" },
+  { id:"o2",       label:"Oxygen: 15L via Non-Rebreather Mask", sub:"Or 6L nasal cannula if patient cannot tolerate mask. Monitor SpO2.",         cat:"immediate", lvl:"ALL" },
+  { id:"bg",       label:"Blood Glucose Analysis",              sub:"If BGL below 60 mg/dL follow ALOC Protocol for glucose management.",         cat:"immediate", lvl:"ALL" },
+  { id:"iv",       label:"IV Access — 20 mL/kg NS Bolus",       sub:"May repeat to maintain SBP above 90 mmHg. Listen for crackles.",             cat:"fluid",     lvl:"ILS/ALS" },
+  { id:"reassess", label:"Reassess After Fluid Bolus",          sub:"Check BP, HR, mental status, lung sounds. Hold fluids if crackles develop.", cat:"fluid",     lvl:"ILS/ALS" },
+  { id:"etco2",    label:"EtCO2 Monitoring (If Available)",     sub:"PaCO2 below 32 mmHg counts as positive sepsis criterion.",                   cat:"monitor",   lvl:"ALS" },
+  { id:"lactate",  label:"Point-of-Care Lactate",               sub:"Obtain to guide resuscitation and transport priority.",                      cat:"monitor",   lvl:"ALS" },
+  { id:"ecg",      label:"Continuous ECG / Cardiac Monitor",    sub:"SpO2, NIBP every 5 min, EtCO2.",                                             cat:"monitor",   lvl:"ALS" },
+  { id:"alert",    label:"CALL SEPSIS ALERT — Medical Control", sub:"Required when screening tool is positive. Provide ETA, vitals, lactate, GCS.", cat:"transport", lvl:"ALL" },
+  { id:"tx",       label:"Expedite Transport",                  sub:"Do not delay transport for field procedures. Time to antibiotics is critical.", cat:"transport", lvl:"ALL" },
+  { id:"solumed",  label:"Solu-Medrol CONTRAINDICATED",         sub:"Do NOT give to patients with fever, hyperglycemia, AND signs of sepsis.",    cat:"caution",   lvl:"ALL" }
+];
+
+var CATS = {
+  immediate: { label:"Immediate Actions",            color:"#ef4444" },
+  fluid:     { label:"Fluid Management",             color:"#3b82f6" },
+  monitor:   { label:"Monitoring",                   color:"#8b5cf6" },
+  transport: { label:"Transport & Notification",     color:"#f59e0b" },
+  caution:   { label:"Cautions & Contraindications", color:"#f59e0b" }
+};
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function setTab(id) {
+  currentTab = id;
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.nav-btn').forEach(function(b){ b.classList.remove('active'); });
+  document.getElementById('tab-' + id).classList.add('active');
+  var btns = document.querySelectorAll('.nav-btn');
+  var order = ['screen','lactate','treat','ref','pcr'];
+  btns[order.indexOf(id)].classList.add('active');
+  if (id === 'treat') renderSteps();
+}
+
+// ── Provider level ─────────────────────────────────────────────────────────
+function setLevel(l) {
+  providerLevel = l;
+  document.querySelectorAll('.pvl-btn').forEach(function(b){ b.classList.remove('active'); });
+  event.target.classList.add('active');
+  if (currentTab === 'treat') renderSteps();
+}
+
+// ── Criteria toggles ───────────────────────────────────────────────────────
+function toggleCrit(id) {
+  crit[id] = !crit[id];
+  var tog = document.getElementById('tog-' + id);
+  var lbl = document.getElementById('lbl-' + id);
+  if (crit[id]) { tog.classList.add('on'); lbl.classList.add('on'); }
+  else           { tog.classList.remove('on'); lbl.classList.remove('on'); }
+  updateScore();
+}
+
+function toggleRisk(id) {
+  risks[id] = !risks[id];
+  var tog = document.getElementById('tog-r-' + id);
+  var lbl = document.getElementById('lbl-r-' + id);
+  if (risks[id]) { tog.classList.add('on'); lbl.classList.add('on'); }
+  else            { tog.classList.remove('on'); lbl.classList.remove('on'); }
+}
+
+// ── Score update ───────────────────────────────────────────────────────────
+function updateScore() {
+  var score = 0;
+  for (var k in crit) { if (crit[k]) score++; }
+  var alert = score >= 2;
+
+  document.getElementById('score-num').textContent = score;
+  document.getElementById('score-num').style.color  = alert ? '#ef4444' : '#10b981';
+  document.getElementById('score-label').textContent = alert ? 'SEPSIS ALERT — Screen Positive' : 'Screening Negative';
+  document.getElementById('score-label').style.color = alert ? '#ef4444' : '#10b981';
+  document.getElementById('score-desc').textContent  = alert ? '2+ criteria met. Call Medical Control now. Initiate protocol.' : 'Does not meet 2+ criteria. Monitor and reassess.';
+
+  var banner = document.getElementById('score-banner');
+  banner.style.border    = '1px solid ' + (alert ? '#ef4444' : '#10b981');
+  banner.style.background = (alert ? '#ef4444' : '#10b981') + '18';
+
+  document.getElementById('alert-box').style.display = alert ? 'block' : 'none';
+
+  var hdr = document.getElementById('header');
+  if (alert) hdr.classList.add('alert'); else hdr.classList.remove('alert');
+
+  // badge
+  var badge = document.getElementById('badge');
+  if (alert) {
+    badge.textContent = 'SEPSIS ALERT';
+    badge.style.background = 'rgba(255,255,255,0.2)';
+    badge.style.color = '#fff';
+    badge.style.border = '1px solid rgba(255,255,255,0.4)';
+  } else if (score === 1) {
+    badge.textContent = 'MONITOR';
+    badge.style.background = '#f59e0b28';
+    badge.style.color = '#f59e0b';
+    badge.style.border = '1px solid #f59e0b44';
+  } else {
+    badge.textContent = 'LOW RISK';
+    badge.style.background = '#10b98128';
+    badge.style.color = '#10b981';
+    badge.style.border = '1px solid #10b98144';
+  }
+
+  // update treat tab alert if visible
+  var ta = document.getElementById('treat-alert');
+  if (ta) {
+    ta.style.display = alert ? 'block' : 'none';
+    var txt = document.getElementById('treat-alert-text');
+    if (txt) txt.textContent = 'Screening positive (' + score + ' criteria met). Medical Control notification required.';
+  }
+}
+
+// ── Timer ──────────────────────────────────────────────────────────────────
+function toggleTimer() {
+  if (timerStart === null) {
+    timerStart = Date.now();
+    timerInterval = setInterval(updateTimerDisplay, 1000);
+    document.getElementById('timer-btn').textContent = 'Reset';
+    document.getElementById('timer-btn').className = 'stop';
+    document.getElementById('timer-display').style.display = 'block';
+  } else {
+    clearInterval(timerInterval);
+    timerStart = null;
+    document.getElementById('timer-value').textContent = '--:--';
+    document.getElementById('header-timer').textContent = '--:--';
+    document.getElementById('timer-btn').textContent = 'Start';
+    document.getElementById('timer-btn').className = 'start';
+    document.getElementById('timer-display').style.display = 'none';
+  }
+}
+
+function updateTimerDisplay() {
+  if (timerStart === null) return;
+  var elapsed = Math.floor((Date.now() - timerStart) / 1000);
+  var mm = String(Math.floor(elapsed / 60)).padStart(2,'0');
+  var ss = String(elapsed % 60).padStart(2,'0');
+  var str = mm + ':' + ss;
+  document.getElementById('timer-value').textContent = str;
+  document.getElementById('header-timer').textContent = str;
+}
+
+// ── Lactate ────────────────────────────────────────────────────────────────
+function updateLactate() {
+  var raw = document.getElementById('lac-input').value;
+  var n = parseFloat(raw);
+  var result = document.getElementById('lac-result');
+  var inp = document.getElementById('lac-input');
+
+  if (!raw || isNaN(n)) {
+    result.style.display = 'none';
+    inp.style.borderColor = '#1a2535';
+    inp.style.color = '#f1f5f9';
+    return;
+  }
+
+  var color, level, action;
+  if (n < 2) {
+    color = '#10b981'; level = 'Normal';
+    action = 'Low risk. Continue monitoring. Reassess if clinical picture changes.';
+  } else if (n < 4) {
+    color = '#f59e0b'; level = 'Elevated — Sepsis';
+    action = 'Initiate 20 mL/kg NS bolus. Call Sepsis Alert to Medical Control. Expedite transport.';
+  } else {
+    color = '#ef4444'; level = 'SEPTIC SHOCK';
+    action = 'URGENT. Aggressive fluid resuscitation. Immediate transport. Code-level Sepsis Alert now.';
+  }
+
+  inp.style.borderColor = color;
+  inp.style.color = color;
+  result.style.display = 'block';
+  result.style.background = color + '18';
+  result.style.border = '1px solid ' + color;
+  document.getElementById('lac-result-level').textContent = level;
+  document.getElementById('lac-result-level').style.color = color;
+  document.getElementById('lac-result-action').textContent = action;
+}
+
+// ── Render treatment steps ─────────────────────────────────────────────────
+function visibleSteps() {
+  return STEPS.filter(function(s) {
+    if (providerLevel === 'ALS') return true;
+    if (providerLevel === 'ILS') return s.lvl !== 'ALS';
+    return s.lvl === 'ALL';
+  });
+}
+
+function renderSteps() {
+  var container = document.getElementById('steps-container');
+  var steps = visibleSteps();
+  var done = steps.filter(function(s){ return checks[s.id]; }).length;
+
+  // progress
+  document.getElementById('progress-text').textContent = done + '/' + steps.length;
+  var pct = steps.length ? Math.round(done / steps.length * 100) : 0;
+  document.getElementById('progress-bar-fill').style.width = pct + '%';
+  document.getElementById('progress-bar-fill').style.background = done === steps.length ? '#10b981' : '#ef4444';
+  var pctTag = document.getElementById('progress-pct');
+  pctTag.textContent = pct + '%';
+  if (done === steps.length && steps.length > 0) {
+    pctTag.style.background = '#10b98128'; pctTag.style.color = '#10b981'; pctTag.style.border = '1px solid #10b98144';
+  } else {
+    pctTag.style.background = '#ef444428'; pctTag.style.color = '#ef4444'; pctTag.style.border = '1px solid #ef444444';
+  }
+
+  // group by category
+  var groups = {};
+  steps.forEach(function(s) {
+    if (!groups[s.cat]) groups[s.cat] = [];
+    groups[s.cat].push(s);
+  });
+
+  var html = '';
+  var catOrder = ['immediate','fluid','monitor','transport','caution'];
+  catOrder.forEach(function(cat) {
+    if (!groups[cat] || !groups[cat].length) return;
+    var cfg = CATS[cat];
+    html += '<div class="card">';
+    html += '<div class="card-title" style="color:' + cfg.color + '">' + cfg.label + '</div>';
+    groups[cat].forEach(function(step, i) {
+      var isDone = !!checks[step.id];
+      var lvlColor = step.lvl === 'ALL' ? '#10b981' : step.lvl === 'ALS' ? '#ef4444' : '#f59e0b';
+      var lvlBg    = step.lvl === 'ALL' ? '#10b98128' : step.lvl === 'ALS' ? '#ef444428' : '#f59e0b28';
+      var lvlBord  = step.lvl === 'ALL' ? '#10b98144' : step.lvl === 'ALS' ? '#ef444444' : '#f59e0b44';
+      html += '<div class="step-row' + (isDone ? ' done' : '') + '" onclick="toggleCheck(\'' + step.id + '\')" style="border-bottom:' + (i < groups[cat].length - 1 ? '1px solid #1a2535' : 'none') + '">';
+      html += '<div class="checkbox' + (isDone ? ' checked' : '') + '">' + (isDone ? '&#10003;' : '') + '</div>';
+      html += '<div style="flex:1">';
+      html += '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:3px">';
+      html += '<span class="step-label">' + step.label + '</span>';
+      html += '<span class="step-tag" style="background:' + lvlBg + ';color:' + lvlColor + ';border:1px solid ' + lvlBord + '">' + step.lvl + '</span>';
+      html += '</div>';
+      html += '<div class="step-sub">' + step.sub + '</div>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+  });
+
+  container.innerHTML = html;
+}
+
+function toggleCheck(id) {
+  checks[id] = !checks[id];
+  renderSteps();
+}
+
+// ── Reset ──────────────────────────────────────────────────────────────────
+function resetAll() {
+  // reset criteria
+  for (var k in crit) {
+    crit[k] = false;
+    var tog = document.getElementById('tog-' + k);
+    var lbl = document.getElementById('lbl-' + k);
+    if (tog) tog.classList.remove('on');
+    if (lbl) lbl.classList.remove('on');
+  }
+  for (var k in risks) {
+    risks[k] = false;
+    var tog = document.getElementById('tog-r-' + k);
+    var lbl = document.getElementById('lbl-r-' + k);
+    if (tog) tog.classList.remove('on');
+    if (lbl) lbl.classList.remove('on');
+  }
+  checks = {};
+
+  // reset lactate
+  document.getElementById('lac-input').value = '';
+  document.getElementById('lac-input').style.borderColor = '#1a2535';
+  document.getElementById('lac-input').style.color = '#f1f5f9';
+  document.getElementById('lac-result').style.display = 'none';
+
+  // reset timer
+  if (timerInterval) clearInterval(timerInterval);
+  timerStart = null; timerInterval = null;
+  document.getElementById('timer-value').textContent = '--:--';
+  document.getElementById('header-timer').textContent = '--:--';
+  document.getElementById('timer-btn').textContent = 'Start';
+  document.getElementById('timer-btn').className = 'start';
+  document.getElementById('timer-display').style.display = 'none';
+
+  updateScore();
+  if (currentTab === 'treat') renderSteps();
+
+  // reset PCR
+  var pcrFields = ['pcr-age','pcr-sex','pcr-cc','pcr-hpi','pcr-pmhx','pcr-meds','pcr-allergy','pcr-bp-sys','pcr-bp-dia','pcr-hr','pcr-rr','pcr-spo2','pcr-temp','pcr-gcs','pcr-bg','pcr-etco2','pcr-bp2-sys','pcr-bp2-dia','pcr-hr2','pcr-spo2-2','pcr-gcs2','pcr-ivsite','pcr-ivtotal','pcr-fluid-response','pcr-notes','pcr-rhythm','pcr-ecg-finding2','pcr-ecg-tx','pcr-ecg-notes','pcr-provider-name','pcr-provider-id'];
+  pcrFields.forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+  pcrChecks = {};
+  ['pi-o2-nrb','pi-o2-nc','pi-iv','pi-io','pi-ivf','pi-ivf2','pi-lactate','pi-ecg','pi-glucose','pi-dextrose','pi-mc','pi-etco2'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) { el.classList.remove('on'); el.innerHTML = ''; }
+  });
+  document.getElementById('pcr-output').style.display = 'none';
+  document.getElementById('pcr-text').textContent = '';
+  var hint = document.getElementById('quick-add-hint');
+  if (hint) hint.style.display = 'none';
+  // reset voice
+  if (voiceActive) stopVoiceQuiet();
+  voiceFinal = ''; voiceInterim = '';
+  var vt = document.getElementById('voice-transcript'); if (vt) vt.textContent = '';
+  var vtw = document.getElementById('voice-transcript-wrap'); if (vtw) vtw.style.display = 'none';
+  var vr = document.getElementById('voice-result'); if (vr) vr.style.display = 'none';
+  var ve = document.getElementById('voice-error'); if (ve) ve.style.display = 'none';
+  var vp = document.getElementById('voice-processing'); if (vp) vp.style.display = 'none';
+}
+
+// ── Fluid calculator ───────────────────────────────────────────────────────
+var weightUnit = 'kg';
+
+function setWeightUnit(unit) {
+  weightUnit = unit;
+  document.getElementById('btn-kg').classList.toggle('active', unit === 'kg');
+  document.getElementById('btn-lbs').classList.toggle('active', unit === 'lbs');
+  updateFluid();
+}
+
+function updateFluid() {
+  var raw = document.getElementById('weight-input').value;
+  var n = parseFloat(raw);
+  var result = document.getElementById('fluid-result');
+  var inp = document.getElementById('weight-input');
+
+  if (!raw || isNaN(n) || n <= 0) {
+    result.style.display = 'none';
+    inp.style.borderColor = '#1a2535';
+    return;
+  }
+
+  var weightKg = weightUnit === 'lbs' ? n * 0.453592 : n;
+  var bolus = Math.round(weightKg * 20);
+  var repeat = Math.min(Math.round(weightKg * 20), 1000);
+
+  inp.style.borderColor = '#3b82f6';
+  result.style.display = 'block';
+
+  document.getElementById('fluid-amount').textContent = bolus.toLocaleString() + ' mL';
+  document.getElementById('fluid-weight-display').textContent =
+    (weightUnit === 'lbs'
+      ? n + ' lbs = ' + weightKg.toFixed(1) + ' kg'
+      : n + ' kg') + ' x 20 mL/kg';
+  document.getElementById('fluid-repeat').textContent = repeat.toLocaleString() + ' mL max';
+}
+
+// ── Quick-add fluid from weight calculator ─────────────────────────────────
+function quickAddFluid() {
+  var wtRaw = document.getElementById('weight-input') ? document.getElementById('weight-input').value : '';
+  var btn = document.getElementById('quick-add-btn');
+  var hint = document.getElementById('quick-add-hint');
+
+  if (!wtRaw || isNaN(parseFloat(wtRaw)) || parseFloat(wtRaw) <= 0) {
+    btn.textContent = 'No weight set';
+    btn.style.background = '#ef444428';
+    btn.style.borderColor = '#ef4444';
+    btn.style.color = '#ef4444';
+    hint.textContent = 'Enter patient weight in the Lactate tab first.';
+    hint.style.color = '#ef4444';
+    hint.style.display = 'block';
+    setTimeout(function() {
+      btn.textContent = 'Auto-fill';
+      btn.style.background = '#3b82f628';
+      btn.style.borderColor = '#3b82f6';
+      btn.style.color = '#3b82f6';
+      hint.style.display = 'none';
+    }, 2500);
+    return;
+  }
+
+  var wtKg = weightUnit === 'lbs' ? parseFloat(wtRaw) * 0.453592 : parseFloat(wtRaw);
+  var bolus = Math.round(wtKg * 20);
+  document.getElementById('pcr-ivtotal').value = bolus;
+
+  var wtDisplay = weightUnit === 'lbs' ? parseFloat(wtRaw) + ' lbs (' + wtKg.toFixed(1) + ' kg)' : parseFloat(wtRaw) + ' kg';
+  hint.textContent = 'Filled: ' + bolus + ' mL — based on ' + wtDisplay + ' x 20 mL/kg';
+  hint.style.color = '#10b981';
+  hint.style.display = 'block';
+
+  btn.textContent = 'Added!';
+  btn.style.background = '#10b98128';
+  btn.style.borderColor = '#10b981';
+  btn.style.color = '#10b981';
+  setTimeout(function() {
+    btn.textContent = 'Auto-fill';
+    btn.style.background = '#3b82f628';
+    btn.style.borderColor = '#3b82f6';
+    btn.style.color = '#3b82f6';
+  }, 2000);
+}
+var pcrChecks = {};
+function togglePcrCheck(id) {
+  pcrChecks[id] = !pcrChecks[id];
+  var el = document.getElementById(id);
+  if (pcrChecks[id]) { el.classList.add('on'); el.innerHTML = '&#10003;'; }
+  else               { el.classList.remove('on'); el.innerHTML = ''; }
+}
+
+// ── BP auto-advance: jump to diastolic when systolic hits 3 digits ─────────
+function bpAutoAdvance(sysEl, diaId) {
+  if (sysEl.value.length >= 3) {
+    var dia = document.getElementById(diaId);
+    if (dia) { dia.focus(); dia.select(); }
+  }
+}
+
+// ── Helper: read a field value ────────────────────────────────────────────
+function val(id) {
+  // Handle split BP fields — combine sys/dia into "120/80"
+  if (id === 'pcr-bp') {
+    var s = getFieldVal('pcr-bp-sys'), d = getFieldVal('pcr-bp-dia');
+    return (s && d) ? s + '/' + d : (s || '');
+  }
+  if (id === 'pcr-bp2') {
+    var s = getFieldVal('pcr-bp2-sys'), d = getFieldVal('pcr-bp2-dia');
+    return (s && d) ? s + '/' + d : (s || '');
+  }
+  return getFieldVal(id);
+}
+function getFieldVal(id) {
+  var el = document.getElementById(id);
+  return (el && el.value) ? el.value.trim() : '';
+}
+
+function generatePCR() {
+  var now = new Date();
+  var timeStr = now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  var dateStr = now.toLocaleDateString([], {month:'short', day:'numeric', year:'numeric'});
+
+  var age     = val('pcr-age');
+  var sex     = val('pcr-sex');
+  var cc      = val('pcr-cc');
+  var hpi     = val('pcr-hpi');
+  var pmhx    = val('pcr-pmhx');
+  var meds    = val('pcr-meds');
+  var allergy = val('pcr-allergy');
+  var bp      = val('pcr-bp');
+  var hr      = val('pcr-hr');
+  var rr      = val('pcr-rr');
+  var spo2    = val('pcr-spo2');
+  var temp    = val('pcr-temp');
+  var gcs     = val('pcr-gcs');
+  var bg      = val('pcr-bg');
+  var etco2   = val('pcr-etco2');
+  var bp2     = val('pcr-bp2');
+  var hr2     = val('pcr-hr2');
+  var spo22   = val('pcr-spo2-2');
+  var gcs2    = val('pcr-gcs2');
+  var ivsite  = val('pcr-ivsite');
+  var ivtotal = val('pcr-ivtotal');
+  var fluidResp = val('pcr-fluid-response');
+  var notes   = val('pcr-notes');
+  var providerName = val('pcr-provider-name');
+  var providerId   = val('pcr-provider-id');
+
+  // ECG fields
+  var rhythm      = val('pcr-rhythm');
+  var ecgFinding2 = val('pcr-ecg-finding2');
+  var ecgTx       = val('pcr-ecg-tx');
+  var ecgNotes    = val('pcr-ecg-notes');
+
+  // Get lactate from lactate tab
+  var lacVal  = val('lac-input');
+  var lacStr  = lacVal ? lacVal + ' mmol/L' : null;
+
+  // Get weight/fluid calc
+  var wtRaw = val('weight-input');
+  var bolusStr = null;
+  if (wtRaw) {
+    var wtKg = weightUnit === 'lbs' ? parseFloat(wtRaw) * 0.453592 : parseFloat(wtRaw);
+    bolusStr = Math.round(wtKg * 20) + ' mL';
+  }
+
+  // Get positive criteria
+  var positiveCrit = [];
+  var critLabels = {
+    hr:   'heart rate above 90 bpm',
+    rr:   'respiratory rate above 22 breaths/min',
+    sbp:  'systolic BP at or below 90 mmHg',
+    temp: 'abnormal temperature',
+    ams:  'altered mental status / decreased LOC',
+    inf:  'chief complaint consistent with infection',
+    gluc: 'blood glucose abnormality',
+    tx:   'active infection treatment prior to EMS arrival'
+  };
+  for (var k in crit) { if (crit[k]) positiveCrit.push(critLabels[k]); }
+
+  var negativeCrit = [];
+  var allCritLabels = {
+    hr:   'heart rate within normal limits',
+    rr:   'respiratory rate within normal limits',
+    sbp:  'blood pressure within normal limits',
+    temp: 'temperature within normal limits',
+    ams:  'alert and oriented, no AMS',
+    inf:  'no clear source of infection identified',
+    gluc: 'blood glucose within normal limits',
+    tx:   'not currently receiving antibiotic therapy'
+  };
+  for (var k in crit) { if (!crit[k]) negativeCrit.push(allCritLabels[k]); }
+
+  var score = positiveCrit.length;
+  var alertStatus = score >= 2 ? 'POSITIVE — Sepsis Alert activated' : score === 1 ? 'Inconclusive (1 criterion met)' : 'NEGATIVE (0 criteria met)';
+
+  // Risk factors
+  var riskList = [];
+  if (risks.age)    riskList.push('age 18 or older');
+  if (risks.immuno) riskList.push('immunocompromised');
+  if (risks.hosp)   riskList.push('recent hospitalization or surgery');
+
+  // Interventions
+  var iList = [];
+  if (pcrChecks['pi-o2-nrb'])  iList.push('supplemental oxygen administered via 15L non-rebreather mask');
+  if (pcrChecks['pi-o2-nc'])   iList.push('supplemental oxygen administered via 6L nasal cannula');
+  if (pcrChecks['pi-iv'])      iList.push('peripheral IV access established' + (ivsite ? ' (' + ivsite + ')' : ''));
+  if (pcrChecks['pi-io'])      iList.push('intraosseous (IO) access established');
+  if (pcrChecks['pi-ivf']) {
+    var ivfStr = 'IV fluid resuscitation initiated with Normal Saline bolus';
+    if (bolusStr) ivfStr += ' — calculated dose: ' + bolusStr;
+    if (ivtotal)  ivfStr += ' — total ' + ivtotal + ' mL administered';
+    iList.push(ivfStr);
+  }
+  if (pcrChecks['pi-ivf2'])    iList.push('repeat fluid bolus administered for persistent hypotension');
+  if (pcrChecks['pi-lactate']) iList.push('point-of-care lactate obtained' + (lacStr ? ': ' + lacStr : ''));
+  if (pcrChecks['pi-ecg'])     iList.push('12-lead ECG obtained and transmitted');
+  if (pcrChecks['pi-glucose']) iList.push('blood glucose analyzed' + (bg ? ': ' + bg + ' mg/dL' : ''));
+  if (pcrChecks['pi-dextrose'])iList.push('Dextrose 50% IV administered for hypoglycemia');
+  if (pcrChecks['pi-mc'])      iList.push('Medical Control contacted — Sepsis Alert called with patient report');
+  if (pcrChecks['pi-etco2'])   iList.push('continuous EtCO2 capnography applied' + (etco2 ? ': ' + etco2 + ' mmHg' : ''));
+
+  // Fluid response string
+  var fluidRespStr = '';
+  if (fluidResp === 'improved')   fluidRespStr = 'Patient demonstrated hemodynamic improvement following fluid resuscitation with improvement in blood pressure and heart rate.';
+  if (fluidResp === 'partial')    fluidRespStr = 'Patient demonstrated partial hemodynamic improvement following fluid administration.';
+  if (fluidResp === 'unchanged')  fluidRespStr = 'Hemodynamics remained unchanged following fluid administration. No improvement in blood pressure or heart rate noted.';
+  if (fluidResp === 'declined')   fluidRespStr = 'Bilateral pulmonary crackles noted following fluid administration. Fluids held per protocol.';
+
+  // Lactate interpretation
+  var lacInterp = '';
+  if (lacStr) {
+    var lacN = parseFloat(lacVal);
+    if (lacN < 2)       lacInterp = 'Lactate ' + lacStr + ' (within normal limits).';
+    else if (lacN < 4)  lacInterp = 'Lactate ' + lacStr + ' (elevated — consistent with sepsis).';
+    else                lacInterp = 'Lactate ' + lacStr + ' (critically elevated — consistent with septic shock).';
+  }
+
+  // Build narrative
+  var pt = (age ? age + '-year-old ' : '') + (sex && sex !== 'unknown' ? sex : 'patient');
+  var lines = [];
+
+  // DISPATCH / SCENE
+  lines.push('DISPATCH / SCENE:');
+  lines.push('EMS responded to ' + (cc ? 'a report of ' + cc : 'a medical emergency') + '. ' +
+    'Upon arrival, ' + pt + ' was found ' + (hpi ? hpi : 'with the above chief complaint') + '. ' +
+    (riskList.length ? 'Pertinent risk factors include: ' + riskList.join(', ') + '.' : ''));
+
+  lines.push('');
+
+  // HISTORY
+  lines.push('HISTORY:');
+  lines.push(
+    (pmhx  ? 'PMHx: ' + pmhx + '. '      : 'PMHx: Not reported. ') +
+    (meds   ? 'Medications: ' + meds + '. ' : 'Medications: Not reported. ') +
+    (allergy? 'Allergies: ' + allergy + '.' : 'Allergies: Not reported.')
+  );
+
+  lines.push('');
+
+  // ASSESSMENT / VITALS
+  lines.push('INITIAL ASSESSMENT AND VITALS:');
+  var vitalParts = [];
+  if (bp)   vitalParts.push('BP ' + bp + ' mmHg');
+  if (hr)   vitalParts.push('HR ' + hr + ' bpm');
+  if (rr)   vitalParts.push('RR ' + rr + ' breaths/min');
+  if (spo2) vitalParts.push('SpO2 ' + spo2 + '%');
+  if (temp) vitalParts.push('Temp ' + temp);
+  if (gcs)  vitalParts.push('GCS ' + gcs + '/15');
+  if (bg)   vitalParts.push('BGL ' + bg + ' mg/dL');
+  if (etco2)vitalParts.push('EtCO2 ' + etco2 + ' mmHg');
+  if (lacStr) vitalParts.push('Lactate ' + lacStr);
+
+  lines.push(vitalParts.length ? 'Initial vital signs: ' + vitalParts.join(', ') + '.' : 'Vital signs obtained on arrival.');
+
+  lines.push('');
+
+  // SEPSIS SCREENING
+  lines.push('OSF SEMC SEPSIS SCREENING TOOL (' + score + '/8 criteria met — ' + alertStatus + '):');
+  if (positiveCrit.length) {
+    lines.push('Pertinent positives: ' + positiveCrit.join('; ') + '.');
+  }
+  if (lacInterp) {
+    lines.push(lacInterp);
+  }
+  if (negativeCrit.length) {
+    lines.push('Pertinent negatives: ' + negativeCrit.join('; ') + '.');
+  }
+
+  lines.push('');
+
+  // TREATMENT
+  lines.push('TREATMENT:');
+  if (iList.length) {
+    lines.push('The following interventions were performed in accordance with the OSF SEMC Sepsis Protocol:');
+    iList.forEach(function(item, i) {
+      lines.push((i+1) + '. ' + item.charAt(0).toUpperCase() + item.slice(1) + '.');
+    });
+  } else {
+    lines.push('Care rendered in accordance with Universal Patient Care Protocol.');
+  }
+
+  if (fluidRespStr) {
+    lines.push('');
+    lines.push('Patient response: ' + fluidRespStr);
+  }
+
+  lines.push('');
+
+  // VITALS ON DEPARTURE / THROUGHOUT TRANSPORT
+  if (bp2 || hr2 || spo22 || gcs2) {
+    lines.push('VITALS ON DEPARTURE / THROUGHOUT TRANSPORT:');
+    var dep = [];
+    if (bp2)   dep.push('BP ' + bp2 + ' mmHg');
+    if (hr2)   dep.push('HR ' + hr2 + ' bpm');
+    if (spo22) dep.push('SpO2 ' + spo22 + '%');
+    if (gcs2)  dep.push('GCS ' + gcs2 + '/15');
+    lines.push(dep.join(', ') + '.');
+    lines.push('');
+  }
+
+  // 12-LEAD ECG (before transport)
+  var rhythmLabels = {
+    'nsr':'Normal Sinus Rhythm (NSR)',
+    'st':'Sinus Tachycardia',
+    'sb':'Sinus Bradycardia',
+    'sa':'Sinus Arrhythmia',
+    'afib':'Atrial Fibrillation',
+    'aflutter':'Atrial Flutter',
+    'svt':'Supraventricular Tachycardia (SVT)',
+    'avnrt':'AVNRT',
+    'avrt':'AVRT / WPW Pattern',
+    'pat':'Paroxysmal Atrial Tachycardia (PAT)',
+    'junctional':'Junctional Rhythm',
+    'pacs':'PACs (Premature Atrial Contractions)',
+    'pvcs':'PVCs (Premature Ventricular Contractions)',
+    'pvcs-freq':'Frequent PVCs (bigeminy/trigeminy)',
+    'vt':'Ventricular Tachycardia (VT)',
+    'vfib':'Ventricular Fibrillation (VF)',
+    'idioventricular':'Idioventricular Rhythm',
+    'torsades':'Torsades de Pointes',
+    '1avb':'1st Degree AV Block',
+    '2avb-m1':'2nd Degree AV Block — Mobitz Type I (Wenckebach)',
+    '2avb-m2':'2nd Degree AV Block — Mobitz Type II',
+    '3avb':'3rd Degree (Complete) AV Block',
+    'rbbb':'Right Bundle Branch Block (RBBB)',
+    'lbbb':'Left Bundle Branch Block (LBBB)',
+    'lbbb-new':'New LBBB (presumed STEMI equivalent)',
+    'lafb':'Left Anterior Fascicular Block (LAFB)',
+    'lpfb':'Left Posterior Fascicular Block (LPFB)',
+    'stemi-ant':'STEMI — Anterior (V1-V4)',
+    'stemi-inf':'STEMI — Inferior (II, III, aVF)',
+    'stemi-lat':'STEMI — Lateral (I, aVL, V5-V6)',
+    'stemi-post':'STEMI — Posterior',
+    'stemi-rv':'STEMI — Right Ventricular',
+    'nstemi':'NSTEMI / ST Depression',
+    'twi':'T-Wave Inversions',
+    'lbbb-sgarbossa':'LBBB with Sgarbossa Criteria met',
+    'paced':'Paced Rhythm',
+    'paced-failure':'Pacemaker Failure to Capture',
+    'long-qt':'Prolonged QT Interval',
+    'brugada':'Brugada Pattern',
+    'early-repol':'Early Repolarization',
+    'artifact':'Artifact / Poor Quality — Uninterpretable'
+  };
+  var finding2Labels = {
+    'st-elev':'ST elevation noted',
+    'st-dep':'ST depression noted',
+    'twi':'T-wave inversions noted',
+    'wide-qrs':'wide QRS complex',
+    'long-qt':'prolonged QT interval',
+    'delta':'delta waves present',
+    'q-waves':'pathological Q-waves',
+    'lvh':'LVH pattern',
+    'none':'no acute ST/T-wave changes identified'
+  };
+
+  if (pcrChecks['pi-ecg'] || rhythm) {
+    lines.push('12-LEAD ECG:');
+    var ecgLine = '12-lead ECG obtained in the field.';
+    if (rhythm && rhythmLabels[rhythm]) ecgLine += ' Primary rhythm: ' + rhythmLabels[rhythm] + '.';
+    if (ecgFinding2 && finding2Labels[ecgFinding2]) ecgLine += ' Additional findings: ' + finding2Labels[ecgFinding2] + '.';
+    if (ecgNotes) ecgLine += ' ' + ecgNotes + '.';
+    if (ecgTx === 'yes') ecgLine += ' 12-lead transmitted to receiving facility prior to arrival.';
+    else if (ecgTx === 'no') ecgLine += ' 12-lead was not transmitted.';
+    lines.push(ecgLine);
+    var critRhythms = ['vt','vfib','3avb','torsades','stemi-ant','stemi-inf','stemi-lat','stemi-post','stemi-rv','lbbb-new','lbbb-sgarbossa','paced-failure','2avb-m2'];
+    if (critRhythms.indexOf(rhythm) !== -1) {
+      lines.push('NOTE: Critical ECG finding identified. Receiving facility notified.');
+    }
+    lines.push('');
+  }
+
+  // TRANSPORT — single section, always last before notes and provider
+  lines.push('TRANSPORT:');
+  var txLine = 'Patient transported ' + (score >= 2 ? 'emergently' : 'non-emergently') + ' to receiving facility in position of comfort.';
+  if (score >= 2) txLine += ' Receiving facility notified via Sepsis Alert with advance report provided.';
+  lines.push(txLine);
+  lines.push('Patient care and report transferred to receiving ED staff upon arrival.');
+
+  // Additional notes
+  if (notes) {
+    lines.push('');
+    lines.push('ADDITIONAL NOTES:');
+    lines.push(notes);
+  }
+
+  lines.push('');
+  lines.push('Provider: ' + providerLevel +
+    (providerName ? ' | ' + providerName : '') +
+    (providerId   ? ' | ' + providerId   : '') +
+    ' | ' + dateStr + ' ' + timeStr);
+
+  var narrative = lines.join('\n');
+  document.getElementById('pcr-text').textContent = narrative;
+  document.getElementById('pcr-output').style.display = 'block';
+  document.getElementById('pcr-output').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function copyPCR() {
+  var text = document.getElementById('pcr-text').textContent;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() { showCopyConfirm(); });
+  } else {
+    // Fallback for older browsers
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showCopyConfirm();
+  }
+}
+
+function showCopyConfirm() {
+  var btn = document.getElementById('copy-btn');
+  var conf = document.getElementById('copy-confirm');
+  btn.textContent = 'Copied!';
+  btn.style.background = '#10b98128';
+  btn.style.borderColor = '#10b981';
+  btn.style.color = '#10b981';
+  conf.style.display = 'block';
+  setTimeout(function() {
+    btn.textContent = 'Copy';
+    btn.style.background = '#8b5cf628';
+    btn.style.borderColor = '#8b5cf6';
+    btn.style.color = '#8b5cf6';
+    conf.style.display = 'none';
+  }, 2500);
+}
+
+function selectPCR() {
+  var el = document.getElementById('pcr-text');
+  var range = document.createRange();
+  range.selectNodeContents(el);
+  var sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+// ── Voice Intake ───────────────────────────────────────────────────────────
+var voiceRecognition = null;
+var voiceActive      = false;
+var voiceFinal       = '';   // confirmed final text
+var voiceInterim     = '';   // live partial text
+
+function toggleVoice() {
+  voiceActive ? stopVoice() : startVoice();
+}
+
+function startVoice() {
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    showVoiceError('Speech recognition requires Chrome (Android or desktop). Safari and Firefox are not supported.');
+    return;
+  }
+
+  voiceFinal = '';
+  voiceInterim = '';
+  voiceRecognition = new SR();
+  voiceRecognition.continuous    = true;
+  voiceRecognition.interimResults = true;
+  voiceRecognition.lang          = 'en-US';
+
+  // Reset UI
+  document.getElementById('voice-transcript').textContent = '';
+  document.getElementById('voice-transcript-wrap').style.display = 'block';
+  document.getElementById('voice-result').style.display  = 'none';
+  document.getElementById('voice-error').style.display   = 'none';
+  document.getElementById('voice-processing').style.display = 'none';
+  document.getElementById('voice-status').style.display  = 'block';
+
+  var btn = document.getElementById('voice-btn');
+  btn.style.background = '#ef4444';
+  document.getElementById('voice-btn-icon').textContent  = '\u25A0';
+  document.getElementById('voice-btn-label').textContent = 'Stop & Extract';
+
+  voiceRecognition.onresult = function(e) {
+    var interim = '';
+    for (var i = e.resultIndex; i < e.results.length; i++) {
+      var t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) voiceFinal += t + ' ';
+      else interim += t;
+    }
+    voiceInterim = interim;
+    var el = document.getElementById('voice-transcript');
+    el.textContent = voiceFinal + (interim ? interim : '');
+    el.scrollTop = el.scrollHeight;
+  };
+
+  voiceRecognition.onerror = function(e) {
+    if (e.error === 'no-speech') return; // ignore silence gaps
+    stopVoiceQuiet();
+    if (e.error === 'not-allowed') showVoiceError('Microphone access denied. Tap the lock icon in your browser address bar and allow microphone, then try again.');
+    else showVoiceError('Microphone error: ' + e.error + '. Make sure Chrome has microphone permission.');
+  };
+
+  voiceRecognition.onend = function() {
+    // Auto-restart to handle browser timeouts mid-interview
+    if (voiceActive) {
+      try { voiceRecognition.start(); } catch(ex) {}
+    }
+  };
+
+  voiceActive = true;
+  try { voiceRecognition.start(); }
+  catch(e) { showVoiceError('Could not start microphone: ' + e.message); voiceActive = false; }
+}
+
+function stopVoiceQuiet() {
+  voiceActive = false;
+  if (voiceRecognition) { try { voiceRecognition.stop(); } catch(e) {} voiceRecognition = null; }
+  var btn = document.getElementById('voice-btn');
+  btn.style.background = '#8b5cf6';
+  document.getElementById('voice-btn-icon').textContent  = '\u25CF';
+  document.getElementById('voice-btn-label').textContent = 'Start Listening';
+  document.getElementById('voice-status').style.display  = 'none';
+}
+
+function stopVoice() {
+  // Capture any pending interim text before stopping
+  if (voiceInterim) voiceFinal += voiceInterim + ' ';
+  stopVoiceQuiet();
+  var transcript = voiceFinal.trim();
+  if (transcript.length < 15) {
+    showVoiceError('Not enough speech captured. Hold the phone close and speak for at least 30 seconds covering the patient interview.');
+    return;
+  }
+  document.getElementById('voice-processing').style.display = 'block';
+  // Small delay so UI updates before processing
+  setTimeout(function() { extractFromTranscript(transcript); }, 80);
+}
+
+// ── Extraction engine — understands natural conversational speech ───────────
+function extractFromTranscript(raw) {
+  var t = raw;                        // original case for medications
+  var tl = raw.toLowerCase();         // lowercase for matching
+
+  var result = {};
+
+  // ── 1. AGE ─────────────────────────────────────────────────────────────
+  // Handles: "I'm 68", "he's 72 years old", "72-year-old", "age 55",
+  //          "she is 45", "patient is 80", "eighty years old"
+  var wordsToNum = {one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,
+    ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,
+    seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50,
+    sixty:60,seventy:70,eighty:80,ninety:90};
+
+  // Written-out ages like "seventy two" or "sixty eight"
+  var writtenAge = tl.match(/\b(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[\s-]?(one|two|three|four|five|six|seven|eight|nine)?\b/);
+  if (writtenAge) {
+    var tens = wordsToNum[writtenAge[1]] || 0;
+    var ones = writtenAge[2] ? (wordsToNum[writtenAge[2]] || 0) : 0;
+    var wa = tens + ones;
+    if (wa >= 18 && wa <= 110) result.age = wa;
+  }
+
+  // Numeric age patterns — ordered most-specific first
+  var agePatterns = [
+    /\b(?:i[' ]?m|i am)\s+(\d{2,3})\s*(?:years?(?:\s+old)?)?/i,
+    /\b(?:he[' ]?s|she[' ]?s|he is|she is|they[' ]?re|they are)\s+(\d{2,3})\s*(?:years?(?:\s+old)?)?/i,
+    /\b(\d{2,3})[\s-]year[\s-]old\b/i,
+    /\bage(?:d)?\s*(?:is\s*)?(\d{2,3})\b/i,
+    /\bpatient\s+is\s+(\d{2,3})\b/i,
+    /\b(\d{2,3})\s+years?\s+old\b/i
+  ];
+  if (!result.age) {
+    for (var i = 0; i < agePatterns.length; i++) {
+      var am = tl.match(agePatterns[i]);
+      if (am) {
+        var av = parseInt(am[1] || am[2]);
+        if (av >= 18 && av <= 110) { result.age = av; break; }
+      }
+    }
+  }
+
+  // ── 2. CHIEF COMPLAINT ──────────────────────────────────────────────────
+  // Captures the reason for the call — very broad to catch any phrasing
+  var ccFound = null;
+
+  // Direct statement patterns
+  var ccPatterns = [
+    /(?:calling|called|called 911|reason|here|came in|brought in|came to|presenting)\s+(?:because|for|with|about|due to|complaining of)\s+([^,.?!]{4,80})/i,
+    /(?:chief complaint|main complaint|main problem|problem today|what brings you|what's going on|what happened|what's wrong|what brings)\s*(?:is|:)?\s*([^,.?!]{4,80})/i,
+    /(?:i've been|i have been|i am|i'm|been)\s+(?:having|feeling|experiencing|dealing with|suffering from)\s+([^,.?!]{4,70})/i,
+    /(?:my|the)\s+(?:chest|stomach|belly|back|head|leg|arm|side|abdomen)\s+(?:hurts|is killing|pain|hurting|is sore|is tender)/i,
+    /(?:can't|cannot|having trouble|difficulty)\s+(?:breathe|breathing|catch my breath|walking|standing)/i,
+    /(?:fell|fallen|fainted|passed out|blacked out|collapsed|unresponsive|not responding)/i,
+    /(?:fever|chills|sweating|shaking|shivering|burning up|very hot|very cold)/i,
+    /(?:throwing up|vomiting|nauseous|nausea|diarrhea|not eating|won't eat)/i,
+    /(?:confused|disoriented|not making sense|acting strange|acting weird|altered|lethargic)/i,
+    /(?:infection|wound|cut|laceration|abscess|swollen|swelling|redness|red and warm)/i,
+    /(?:weak|weakness|dizzy|dizziness|lightheaded|tired|exhausted|fatigue)/i,
+    /(?:pressure|squeezing|tightness|heaviness)\s+in\s+(?:my\s+)?(?:chest|left arm|jaw)/i
+  ];
+
+  for (var i = 0; i < ccPatterns.length; i++) {
+    var cm = t.match(ccPatterns[i]);
+    if (cm) {
+      ccFound = cm[1] ? cm[1].trim() : cm[0].trim();
+      // Clean up trailing words
+      ccFound = ccFound.replace(/\s+(and|but|so|because|since|although|however|the|a|an)\s*$/i, '').trim();
+      if (ccFound.length > 3) break;
+    }
+  }
+  if (ccFound) result.chief_complaint = ccFound;
+
+  // ── 3. MEDICAL HISTORY ──────────────────────────────────────────────────
+  // Catches conditions stated in any natural way
+  var conditionsFound = [];
+
+  var conditionMap = [
+    // Format: [ regex, display name ]
+    [/\bdiabet(?:es|ic|ics)\b/i,                              'Diabetes'],
+    [/\btype\s*[12]\s*diabet/i,                               'Diabetes'],
+    [/\bhigh\s+blood\s+pressure\b/i,                          'Hypertension'],
+    [/\bhypertension\b/i,                                     'Hypertension'],
+    [/\bhtn\b/i,                                              'Hypertension'],
+    [/\bheart\s+(?:failure|disease|condition|problem)\b/i,    'Heart disease'],
+    [/\bchf\b/i,                                              'CHF'],
+    [/\bcongestive\s+heart\s+failure\b/i,                     'CHF'],
+    [/\bcoronary\s+artery\b/i,                                'CAD'],
+    [/\bcad\b/i,                                              'CAD'],
+    [/\bcopd\b/i,                                             'COPD'],
+    [/\bchronic\s+obstructive\b/i,                            'COPD'],
+    [/\bemphysema\b/i,                                        'COPD/Emphysema'],
+    [/\basthma\b/i,                                           'Asthma'],
+    [/\ba(?:trial\s*)?fib(?:rillation)?\b/i,                  'Atrial fibrillation'],
+    [/\bafib\b/i,                                             'Atrial fibrillation'],
+    [/\bkidney\s+(?:disease|failure|problems?|issues?)\b/i,   'Kidney disease'],
+    [/\bckd\b/i,                                              'CKD'],
+    [/\brenal\s+(?:failure|disease|insufficiency)\b/i,        'Renal failure'],
+    [/\bdialysis\b/i,                                         'End-stage renal disease (dialysis)'],
+    [/\bcancer\b/i,                                           'Cancer'],
+    [/\btumor\b/i,                                            'Cancer/tumor'],
+    [/\bchemo(?:therapy)?\b/i,                                'Cancer (on chemotherapy)'],
+    [/\bhiv\b/i,                                              'HIV'],
+    [/\baids\b/i,                                             'AIDS'],
+    [/\btransplant\b/i,                                       'Organ transplant'],
+    [/\bimmunocompromised\b/i,                                'Immunocompromised'],
+    [/\bstroke\b/i,                                           'Stroke'],
+    [/\bcva\b/i,                                              'CVA'],
+    [/\btia\b/i,                                              'TIA'],
+    [/\bheart\s+attack\b/i,                                   'Prior MI'],
+    [/\bmyocardial\s+infarction\b/i,                          'Prior MI'],
+    [/\bmi\b(?!\s*\d)/i,                                      'Prior MI'],
+    [/\bthyroid\b/i,                                          'Thyroid disease'],
+    [/\bhypothyroid/i,                                        'Hypothyroidism'],
+    [/\bhyperthyroid/i,                                       'Hyperthyroidism'],
+    [/\bseizure(?:\s+disorder)?\b/i,                          'Seizure disorder'],
+    [/\bepilepsy\b/i,                                         'Epilepsy'],
+    [/\bdementia\b/i,                                         'Dementia'],
+    [/\balzheimer\b/i,                                        'Alzheimer disease'],
+    [/\bparkinson\b/i,                                        'Parkinson disease'],
+    [/\bdepression\b/i,                                       'Depression'],
+    [/\banxiety\b/i,                                          'Anxiety'],
+    [/\bschizophrenia\b/i,                                    'Schizophrenia'],
+    [/\bbipolar\b/i,                                          'Bipolar disorder'],
+    [/\bliver\s+(?:disease|failure|cirrhosis|problems?)\b/i,  'Liver disease'],
+    [/\bcirrhosis\b/i,                                        'Cirrhosis'],
+    [/\bhepatitis\b/i,                                        'Hepatitis'],
+    [/\bpneumonia\b/i,                                        'Pneumonia'],
+    [/\buti\b/i,                                              'UTI'],
+    [/\burinary\s+tract\s+infection\b/i,                      'UTI'],
+    [/\bcellulitis\b/i,                                       'Cellulitis'],
+    [/\bsepsis\b/i,                                           'Sepsis'],
+    [/\bpacemaker\b/i,                                        'Pacemaker'],
+    [/\bdefibrillator\b/i,                                    'ICD/defibrillator'],
+    [/\bbypass\b/i,                                           'Coronary bypass surgery'],
+    [/\bstent\b/i,                                            'Coronary stent'],
+    [/\bpacemaker\b/i,                                        'Pacemaker'],
+    [/\bhospitalized\s+(?:recently|last\s+(?:week|month|year))\b/i, 'Recent hospitalization'],
+    [/\bsurgery\s+(?:recently|last\s+(?:week|month|year)|on)\b/i,   'Recent surgery'],
+    [/\brecent\s+(?:surgery|hospitalization|admission|procedure)\b/i,'Recent hospitalization/surgery']
+  ];
+
+  var seenConditions = {};
+  conditionMap.forEach(function(pair) {
+    if (pair[0].test(t) && !seenConditions[pair[1]]) {
+      conditionsFound.push(pair[1]);
+      seenConditions[pair[1]] = true;
+    }
+  });
+
+  // Also catch "history of ___" and "diagnosed with ___"
+  var histPatterns = [
+    /(?:history\s+of|h\/o|diagnosed\s+with|has\s+(?:had\s+)?(?:a\s+)?|suffering\s+from|dealing\s+with|living\s+with)\s+([a-z][^,.?!]{2,50})/gi
+  ];
+  histPatterns.forEach(function(pat) {
+    var m;
+    while ((m = pat.exec(tl)) !== null) {
+      var condition = m[1].trim().replace(/\s+(?:for|since|the|a|an)\s.*$/, '').trim();
+      if (condition.length > 2 && condition.length < 50 && !seenConditions[condition]) {
+        conditionsFound.push(condition.charAt(0).toUpperCase() + condition.slice(1));
+        seenConditions[condition] = true;
+      }
+    }
+  });
+
+  if (conditionsFound.length) result.pmhx = conditionsFound.join(', ');
+
+  // ── 4. MEDICATIONS ──────────────────────────────────────────────────────
+  // Catches any medication mentioned by name, with or without dose
+  var medsFound = [];
+  var seenMeds = {};
+
+  // Common medication names — covers most EMS-relevant drugs
+  var medNames = [
+    'metformin','insulin','glipizide','glimepiride','januvia','jardiance','ozempic','victoza','trulicity',
+    'lisinopril','enalapril','ramipril','captopril','benazepril',
+    'metoprolol','atenolol','carvedilol','bisoprolol','propranolol',
+    'amlodipine','nifedipine','diltiazem','verapamil',
+    'losartan','valsartan','irbesartan','olmesartan','telmisartan',
+    'atorvastatin','simvastatin','rosuvastatin','pravastatin','lovastatin',
+    'furosemide','lasix','hydrochlorothiazide','hctz','spironolactone','torsemide',
+    'warfarin','coumadin','apixaban','eliquis','rivaroxaban','xarelto','dabigatran','pradaxa',
+    'aspirin','clopidogrel','plavix','ticagrelor','brilinta',
+    'levothyroxine','synthroid','methimazole',
+    'prednisone','methylprednisolone','dexamethasone','hydrocortisone',
+    'albuterol','salmeterol','tiotropium','spiriva','fluticasone','advair','symbicort',
+    'omeprazole','pantoprazole','esomeprazole','nexium','lansoprazole','ranitidine',
+    'gabapentin','pregabalin','lyrica',
+    'sertraline','fluoxetine','escitalopram','citalopram','paroxetine','venlafaxine','duloxetine','bupropion',
+    'lorazepam','diazepam','alprazolam','clonazepam',
+    'oxycodone','hydrocodone','morphine','fentanyl','tramadol','codeine',
+    'amoxicillin','azithromycin','ciprofloxacin','doxycycline','trimethoprim','sulfamethoxazole','bactrim',
+    'vancomycin','piperacillin','tazobactam','meropenem',
+    'digoxin','amiodarone','sotalol','flecainide',
+    'clopidogrel','nitroglycerin','nitro','isosorbide',
+    'hydroxychloroquine','methotrexate',
+    'tacrolimus','cyclosporine','mycophenolate',
+    'lisinopril','amlodipine','metoprolol',
+    'sildenafil','tadalafil',
+    'tamsulosin','finasteride',
+    'donepezil','memantine','rivastigmine',
+    'lithium','quetiapine','risperidone','olanzapine','haloperidol','aripiprazole',
+    'levodopa','carbidopa','ropinirole','pramipexole',
+    'colchicine','allopurinol','febuxostat',
+    'testosterone','estradiol','progesterone',
+    'epinephrine','epipen'
+  ];
+
+  // Match known med names
+  medNames.forEach(function(med) {
+    var re = new RegExp('\\b' + med + '\\b', 'i');
+    if (re.test(t) && !seenMeds[med.toLowerCase()]) {
+      medsFound.push(med.charAt(0).toUpperCase() + med.slice(1));
+      seenMeds[med.toLowerCase()] = true;
+    }
+  });
+
+  // Catch "takes/on/taking/prescribed ___ [dose] [for]"
+  var medTakePattern = /(?:take[s]?|taking|on|prescribed|using|started)\s+([A-Za-z][a-z]{2,}(?:\s+[A-Za-z][a-z]{2,})?)\s*(?:\d[\d.]*\s*(?:mg|mcg|ml|units?|iu))?/gi;
+  var mm;
+  while ((mm = medTakePattern.exec(t)) !== null) {
+    var mname = mm[1].trim().toLowerCase();
+    // Skip common non-medication words
+    var skip = ['the','and','for','his','her','my','their','some','this','that','them','with','any','all','more','less','also','just','only','once','twice','daily','every','blood','water','food','pain','this','these','those'];
+    if (mname.length > 3 && skip.indexOf(mname) === -1 && !seenMeds[mname]) {
+      medsFound.push(mm[1].trim().charAt(0).toUpperCase() + mm[1].trim().slice(1));
+      seenMeds[mname] = true;
+    }
+  }
+
+  if (medsFound.length) result.medications = medsFound.join(', ');
+
+  // ── 5. ALLERGIES ────────────────────────────────────────────────────────
+  // Catches all allergy phrasings including "no allergies"
+  var allergyPatterns = [
+    /(?:allergic\s+to|allergy\s+to|allergies\s+(?:are|include)|react(?:s|ed|ion)\s+to|can(?:'t|not)\s+take|can(?:'t|not)\s+have)\s+([^,.?!\n]{2,80})/i,
+    /(?:allerg(?:y|ies))\s*:\s*([^,.?!\n]{2,80})/i,
+    /([^,.?!\n]{2,50})\s+(?:gives?\s+(?:me|him|her|them)|makes?\s+(?:me|him|her|them))\s+(?:a\s+)?(?:rash|hives|reaction|sick|trouble|problem)/i
+  ];
+
+  var allergyFound = null;
+  for (var i = 0; i < allergyPatterns.length; i++) {
+    var alm = t.match(allergyPatterns[i]);
+    if (alm) {
+      allergyFound = alm[1].trim().replace(/\s+(?:and\s+)?(?:I|he|she|they|we|my|his|her|their)\b.*/i, '').trim();
+      if (allergyFound.length > 1) break;
+    }
+  }
+
+  // No known allergies phrasing
+  if (!allergyFound && /\b(?:no\s+(?:known\s+)?(?:drug\s+)?allerg|nkda|no\s+allerg|don'?t\s+have\s+(?:any\s+)?allerg|not\s+allergic)\b/i.test(t)) {
+    allergyFound = 'NKDA';
+  }
+
+  if (allergyFound) result.allergies = allergyFound;
+
+  // ── Apply results ────────────────────────────────────────────────────────
+  document.getElementById('voice-processing').style.display = 'none';
+  applyVoiceData(result);
+}
+
+function applyVoiceData(d) {
+  var filled  = [];
+  var details = [];
+
+  function setField(id, value) {
+    var el = document.getElementById(id);
+    if (el && value !== undefined && value !== null && String(value).trim().length > 0) {
+      el.value = String(value).trim();
+      el.style.borderColor = '#8b5cf6';
+      setTimeout(function(){ el.style.borderColor = ''; }, 5000);
+      return true;
+    }
+    return false;
+  }
+
+  if (d.age) {
+    var an = parseInt(d.age);
+    if (an >= 18 && an <= 120 && setField('pcr-age', an)) {
+      filled.push('Age'); details.push('Age: ' + an);
+    }
+  }
+  if (d.chief_complaint && setField('pcr-cc', d.chief_complaint)) {
+    filled.push('Chief complaint');
+    details.push('CC: ' + d.chief_complaint);
+  }
+  if (d.pmhx && setField('pcr-pmhx', d.pmhx)) {
+    filled.push('Medical history');
+    details.push('PMHx: ' + d.pmhx);
+  }
+  if (d.medications && setField('pcr-meds', d.medications)) {
+    filled.push('Medications');
+    details.push('Meds: ' + d.medications);
+  }
+  if (d.allergies && setField('pcr-allergy', d.allergies)) {
+    filled.push('Allergies');
+    details.push('Allergies: ' + d.allergies);
+  }
+
+  if (filled.length > 0) {
+    document.getElementById('voice-result-text').innerHTML =
+      details.map(function(line){ return '<span style="color:#10b981;font-weight:700">&#10003;</span> ' + line; }).join('<br>');
+    document.getElementById('voice-result').style.display = 'block';
+    document.getElementById('voice-error').style.display  = 'none';
+  } else {
+    showVoiceError(
+      'Could not extract the 5 fields from this transcript. Tips:\n\n' +
+      '&#8226; Make sure the patient states their age clearly\n' +
+      '&#8226; Ask "what medications are you on?" directly\n' +
+      '&#8226; Ask "do you have any allergies?"\n' +
+      '&#8226; Ask "what medical history do you have?"\n\n' +
+      'You can also fill in the fields manually below.'
+    );
+  }
+}
+
+function showVoiceError(msg) {
+  var el = document.getElementById('voice-error-text');
+  el.innerHTML = msg.replace(/\n/g,'<br>');
+  document.getElementById('voice-error').style.display   = 'block';
+  document.getElementById('voice-processing').style.display = 'none';
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+updateScore();
+renderSteps();
+</script>
+</body>
+</html>
